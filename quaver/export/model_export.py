@@ -204,7 +204,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             
             # The format (a wide note keeps int32 on a sum that the export wrote as int32: activation_integer() notes the accumulator with its wide format), then the scale and the zero point
             narrowed                                  = form == WIDE_ACCUMULATOR_FORMAT.name and metadata.get(target, {}).get("format") == ACCUMULATOR_FORMAT.name
-            metadata.setdefault(target, {})["format"] = cast(str, form)
+            metadata.setdefault(target, {})["format"] = ACCUMULATOR_FORMAT.name if narrowed else cast(str, form)
             for name, value in ((key, scale), ("zero_point", zero_point)):
                 if isinstance(value, Node) and value.name in known:
                     metadata[target][cast(str, name)] = torch.as_tensor(known[value.name]).tolist()
