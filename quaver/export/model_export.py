@@ -230,7 +230,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         # An accumulator says int32 when its worst case fits 32 bits (accumulate_bits(), with the largest |code| of the bias added right after it), and the bias takes the format of its accumulator
         if name.startswith("accumulate_") and domain == "quaver":
             adds  = [user for user in node.users if user.target is torch.ops.aten.add.Tensor and isinstance(user.args[1], Node) and user.args[1].name in known]
-            peak  = 0 * max((int(torch.as_tensor(known[cast(Node, user.args[1]).name]).abs().max()) for user in adds), default=0)
+            peak  = max((int(torch.as_tensor(known[cast(Node, user.args[1]).name]).abs().max()) for user in adds), default=0)
             sides = [params_named(torch.zeros(()), cast(str, bound[f"{side}_format"]), torch.zeros(()) if bound[f"{side}_scale_format"] else None, cast(str, bound[f"{side}_scale_format"])) for side in ("ab" if name == "accumulate_matmul" else "xw")]
             shape = cast(Node, bound["q_a" if name == "accumulate_matmul" else "q_w"]).meta["val"].shape
             count = math.prod(shape[1:]) if name == "accumulate_conv2d" else shape[-1]
@@ -266,7 +266,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 tensor         = torch.as_tensor(known[item.name] if isinstance(item, Node) else item).detach().cpu()
                 format_name    = (cast(str, bound[spec[argument.name]]) if spec[argument.name] in bound else spec[argument.name]) if argument.name in spec else ""
                 if not format_name:
-                    format_name = biases.get(node.name) or (EXPORT_TYPES[tensor.dtype] if tensor.dtype.is_floating_point else "int32" if tensor.numel() == 0 or (-2**31 <= int(tensor.min()) and int(tensor.max()) < 2**31) else "int64")
+                    format_name = (EXPORT_TYPES[tensor.dtype] if tensor.dtype.is_floating_point else "int32" if tensor.numel() == 0 or (-2**31 <= int(tensor.min()) and int(tensor.max()) < 2**31) else "int64")
                 
                 # The data item (its role keeps the _2 of a second use)
                 constants[label] = {"role": label.removeprefix(f"{chain[-1][1]}.") if chain else label, "tensor": tensor, "format": format_name, "path": chain[-1][1] if chain else ""}
