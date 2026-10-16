@@ -204,7 +204,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             
             # The format (a wide note keeps int32 on a sum that the export wrote as int32: activation_integer() notes the accumulator with its wide format), then the scale and the zero point
             narrowed                                  = form == WIDE_ACCUMULATOR_FORMAT.name and metadata.get(target, {}).get("format") == ACCUMULATOR_FORMAT.name
-            metadata.setdefault(target, {})["format"] = ACCUMULATOR_FORMAT.name if narrowed else cast(str, form)
+            metadata.setdefault(target, {})["format"] = cast(str, form)
             for name, value in ((key, scale), ("zero_point", zero_point)):
                 if isinstance(value, Node) and value.name in known:
                     metadata[target][cast(str, name)] = torch.as_tensor(known[value.name]).tolist()
@@ -266,7 +266,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 tensor         = torch.as_tensor(known[item.name] if isinstance(item, Node) else item).detach().cpu()
                 format_name    = (cast(str, bound[spec[argument.name]]) if spec[argument.name] in bound else spec[argument.name]) if argument.name in spec else ""
                 if not format_name:
-                    format_name = (EXPORT_TYPES[tensor.dtype] if tensor.dtype.is_floating_point else "int32" if tensor.numel() == 0 or (-2**31 <= int(tensor.min()) and int(tensor.max()) < 2**31) else "int64")
+                    format_name = biases.get(node.name) or (EXPORT_TYPES[tensor.dtype] if tensor.dtype.is_floating_point else "int32" if tensor.numel() == 0 or (-2**31 <= int(tensor.min()) and int(tensor.max()) < 2**31) else "int64")
                 
                 # The data item (its role keeps the _2 of a second use)
                 constants[label] = {"role": label.removeprefix(f"{chain[-1][1]}.") if chain else label, "tensor": tensor, "format": format_name, "path": chain[-1][1] if chain else ""}
