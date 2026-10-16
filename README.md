@@ -7,7 +7,7 @@
 
 A quantization library for embedded devices. Quaver quantizes AI models trained in PyTorch, and exports the data you need to run them on your device.
 
-For details, see the [documentation](https://OWNER.github.io/quaver/).
+For details, see the [documentation](https://gucchi3.github.io/quaver/).
 
 ## Features
 
@@ -59,10 +59,10 @@ q_y, _        = conv(q_x, x_params)
 print(torch.equal(q_y, params_codes(y, y_params)))  # True
 ```
 
-To quantize your own model, build it from Quaver layers. They keep the weight names of the PyTorch layers, so you can load the weights of your trained float model. The [documentation](https://OWNER.github.io/quaver/) shows each step, from training to export.
+To quantize your own model, build it from Quaver layers. They keep the weight names of the PyTorch layers, so you can load the weights of your trained float model. The [documentation](https://gucchi3.github.io/quaver/) shows each step, from training to export.
 
 ## License
 
 Quaver is released under the [Mozilla Public License 2.0](LICENSE).
 
-If you use Quaver, please leave a note in [GitHub Discussions](https://github.com/OWNER/quaver/discussions). The author will be very happy to read it. If you use it in your work, please cite it ([CITATION.cff](CITATION.cff)). If you improve it, please send a pull request.
+If you use Quaver, please leave a note in [GitHub Discussions](https://github.com/Gucchi3/quaver/discussions). The author will be very happy to read it. If you use it in your work, please cite it ([CITATION.cff](CITATION.cff)). If you improve it, please send a pull request.

@@ -21,7 +21,7 @@ Quaver is not a pip package. You get the repository, and copy one folder from it
 Clone the repository with git. You can also download it as a ZIP file from the GitHub page (Code, then Download ZIP).
 
 ```bash
-git clone https://github.com/OWNER/quaver.git
+git clone https://github.com/Gucchi3/quaver.git
 ```
 
 ### 2. Copy the Quaver folder into your project

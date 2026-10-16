@@ -46,7 +46,7 @@ def accumulate_bits(x_params: QuantParams, w_params: QuantParams, count: int, bi
     #? Without a bias: params_bits() of both sides + ceil(log2(count)) + 1. A bias adds one more bit only when it can carry the sum past that. model_export() uses this.
     '''
     
-    largest = 2 ** (params_bits(x_params) + params_bits(w_params) + count.bit_length()) - 1
+    largest = 2 ** (params_bits(x_params) + params_bits(w_params) + (count - 1).bit_length()) - 1
     return (largest + bias_peak).bit_length() + 1
 
 

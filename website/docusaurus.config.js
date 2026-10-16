@@ -5,7 +5,7 @@ import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
 
 // The GitHub repository. Change these two when it exists (the site URL, the base path, and the links follow them)
-const OWNER = 'OWNER';
+const OWNER = 'Gucchi3';
 const REPO  = 'quaver';
 
 /** @type {import('@docusaurus/types').Config} */
@@ -15,7 +15,7 @@ const config = {
   favicon: 'img/quaver-icon-light.svg',
 
   // GitHub Pages serves the site at https://OWNER.github.io/REPO/
-  url: `https://${OWNER}.github.io`,
+  url: `https://${OWNER.toLowerCase()}.github.io`,
   baseUrl: `/${REPO}/`,
   organizationName: OWNER,
   projectName: REPO,

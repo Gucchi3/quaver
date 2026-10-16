@@ -6,7 +6,7 @@ type: software
 authors:
   - family-names: "Yamaguchi"
     given-names: "Kohei"
-repository-code: "https://github.com/OWNER/quaver"
-url: "https://OWNER.github.io/quaver/"
+repository-code: "https://github.com/Gucchi3/quaver"
+url: "https://gucchi3.github.io/quaver/"
 license: MPL-2.0
 version: "0.1.0"
