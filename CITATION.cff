@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use Quaver in your work, please cite it as below."
+title: "Quaver"
+abstract: "A quantization library for embedded devices. Quaver quantizes AI models trained in PyTorch, and exports the data you need to run them on your device."
+type: software
+authors:
+  - family-names: "Yamaguchi"
+    given-names: "Kohei"
+repository-code: "https://github.com/OWNER/quaver"
+url: "https://OWNER.github.io/quaver/"
+license: MPL-2.0
+version: "0.1.0"

@@ -1,0 +1,28 @@
+---
+title: "What runs in a forward pass"
+description: "The functions that a model calls inside Quaver, in order, in each mode, with what each call is for."
+sidebar_position: 2
+---
+
+import FlowTree from '@site/src/components/FlowTree';
+
+This page shows which functions of Quaver run when a model runs, in which order, and what each one is for. It comes from a real run of the model of the [guides](../guides/overview.md): a quantizer, `QuantConv2d`, your own `QuantDepthwiseConv2d`, `QuantAvgPool2d`, and `QuantLinear`.
+
+Pick a mode. Open a call to see the calls inside it, and click a name to go to its API page. The calls of one layer are listed under its name, such as **conv1**. The lighter names are private helpers, which the API reference does not list. "×2" means the same call ran twice in a row.
+
+<FlowTree />
+
+## How to read it
+
+In every mode, each conv or linear layer runs the same steps, through `QuantLayer.forward`:
+
+1. `mode_ops` picks the version of the ops for the mode.
+2. The weight quantizer turns the weight into fake-quantized values (training mode) or codes (integer mode).
+3. `bias_quantize` turns the bias into INT32 codes on the scale of the sums.
+4. The sums: the float conv (training mode), or `accumulate_conv2d` on codes (integer mode).
+5. The activation, then the scale of the output (`measure` while training, `params` otherwise).
+6. The requantization with a multiplier and a shift. In the integer mode, `requantize_device` is the step the device runs.
+
+Compare the tabs to see what changes between the modes: in the integer mode, every step that rounds calls a `*_device` function, the integer step of the device. In the training mode, the same integer math runs through the `*_fake` functions, which also attach the gradients.
+
+The tree is made by `website/scripts/flow_trace.py`. Run it again after the code changes: `uv run python website/scripts/flow_trace.py`.

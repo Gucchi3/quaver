@@ -1,0 +1,185 @@
+/*
+ * A spec sheet in three groups, split by wood lines like the boards of a wooden box.
+ * The group name sits on the left in Zen Antique. Each row has a quiet label and its items.
+ * The bits of each format are small squares: ink for the sign, wood for the exponent, light wood for the mantissa, and an empty box for integer bits.
+ */
+.sheet {
+  --bit-size: 0.7rem;
+  margin: 1.5rem 0 2rem;
+  border-top: 2px solid var(--ifm-heading-color);
+  border-bottom: 2px solid var(--ifm-heading-color);
+}
+
+.group {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0 1.5rem;
+  padding: 1.25rem 0;
+}
+
+.group + .group {
+  border-top: 1px solid var(--quaver-wood);
+}
+
+.groupName {
+  margin: 0;
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 400;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  color: var(--ifm-heading-color);
+}
+
+.rows {
+  margin: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.25rem 1rem;
+  align-items: baseline;
+}
+
+.label {
+  margin: 0;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.items {
+  margin: 0;
+}
+
+/* Plain items: words with a thin wood frame */
+.tags,
+.formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The docs give each list item after the first a top margin; the items here line up without it */
+.sheet .tags li,
+.sheet .formats li {
+  margin: 0;
+}
+
+.tags li {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--quaver-wood);
+  border-radius: var(--ifm-global-radius);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* A whole frame is the link when the item has a Learn page, and the frame turns shu on hover */
+.tags li a {
+  display: block;
+  margin: -0.1rem -0.55rem;
+  padding: 0.1rem 0.55rem;
+}
+
+.tags li:has(a:hover) {
+  border-color: var(--ifm-color-primary);
+}
+
+/* A format: its name on top, its bits under it */
+.formats {
+  gap: 0.8rem 1.1rem;
+}
+
+.format {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.formatName {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.formatName code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.9rem;
+  color: var(--ifm-heading-color);
+}
+
+.note {
+  font-size: 0.75rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.bits {
+  display: flex;
+  gap: 2px;
+}
+
+.bit {
+  display: inline-block;
+  width: var(--bit-size);
+  height: var(--bit-size);
+  border: 1px solid var(--ifm-color-emphasis-600);
+}
+
+.s {
+  background: var(--ifm-heading-color);
+  border-color: var(--ifm-heading-color);
+}
+
+.e {
+  background: var(--ifm-color-emphasis-500);
+  border-color: var(--ifm-color-emphasis-500);
+}
+
+.m {
+  background: var(--ifm-color-emphasis-300);
+  border-color: var(--ifm-color-emphasis-400);
+}
+
+.i {
+  background: transparent;
+}
+
+.legend {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* On a narrow screen, the names and labels go above their items */
+@media (max-width: 720px) {
+  .group,
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .groupName {
+    margin-bottom: 0.75rem;
+  }
+
+  .legend {
+    grid-column: 1;
+  }
+}

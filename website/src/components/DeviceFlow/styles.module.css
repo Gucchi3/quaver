@@ -1,0 +1,120 @@
+/*
+ * Three steps in a row, joined by ink arrows. The name of each step is the one bold thing, in the face of the headings.
+ * The things handed to the next step sit on the arrow. On a narrow screen, the steps stack and the arrows point down.
+ */
+.flow {
+  margin: 1.75rem 0 2.25rem;
+}
+
+.steps {
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 1.5rem 0;
+  list-style: none;
+  border-top: 2px solid var(--ifm-heading-color);
+  border-bottom: 2px solid var(--ifm-heading-color);
+}
+
+.steps .stepItem {
+  display: flex;
+  flex: 1 1 0;
+  margin: 0;
+}
+
+.steps .stepItem:last-child {
+  flex: 0.62 1 0;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 8.5rem;
+  max-width: 11rem;
+}
+
+.name {
+  font-family: var(--ifm-heading-font-family);
+  font-size: 1.3rem;
+  line-height: 1.25;
+  color: var(--ifm-heading-color);
+}
+
+.role {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ifm-font-color-secondary);
+}
+
+/* The arrow fills the space between two steps, with the handed things above it */
+.handoff {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 1rem;
+}
+
+.things {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.arrow {
+  position: relative;
+  height: 1px;
+  background: var(--ifm-heading-color);
+}
+
+.arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -4px;
+  border-left: 8px solid var(--ifm-heading-color);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+}
+
+@media (max-width: 720px) {
+  .steps,
+  .steps .stepItem {
+    flex-direction: column;
+  }
+
+  .step {
+    max-width: none;
+  }
+
+  .handoff {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.9rem 0 0.9rem 1.2rem;
+  }
+
+  .things {
+    order: 2;
+    align-items: flex-start;
+  }
+
+  .arrow {
+    width: 1px;
+    height: 2.5rem;
+  }
+
+  .arrow::after {
+    right: -4px;
+    top: auto;
+    bottom: 0;
+    border-top: 8px solid var(--ifm-heading-color);
+    border-left: 4.5px solid transparent;
+    border-right: 4.5px solid transparent;
+    border-bottom: 0;
+  }
+}

@@ -1,0 +1,28 @@
+# Keep everything private, and publish only the files listed below
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/CITATION.cff
+!/quaver/
+!/example/
+!/docs/
+!/website/
+!/.github/
+
+# docs: only the images (the documents for users are on the site in website/. The design memo, the coding rules, the NVFP4 memo, and the papers stay on this machine)
+/docs/*
+!/docs/img/
+
+# example: not the data and the results
+/example/*/data/
+/example/*/log/
+
+# website: not the packages, the build, and the cache of Docusaurus
+/website/node_modules/
+/website/build/
+/website/.docusaurus/
+
+# Python caches anywhere
+__pycache__/
+*.py[cod]

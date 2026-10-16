@@ -1,0 +1,21 @@
+/* A figure sits on the paper with a thin wood frame, like the other figures of the site */
+.widget {
+  margin: 1.5rem 0 2rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--quaver-wood);
+  border-radius: var(--ifm-global-radius);
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--ifm-font-color-secondary);
+}

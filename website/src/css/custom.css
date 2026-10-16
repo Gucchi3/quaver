@@ -1,0 +1,169 @@
+/* The styles of KaTeX for the math (the same version as rehype-katex uses) */
+@import 'katex/dist/katex.min.css';
+
+/* Zen Antique for the headings. Only the Latin letters, since the headings are English */
+@import '@fontsource/zen-antique/latin-400.css';
+
+/*
+ * The colors come from Japanese things: paper, ink, a red seal, and a wooden box:
+ * kinari (raw silk) for the paper, sumi for the ink, shu for the red of the seal, hinoki for the wood of the box, and ai (indigo) for notes.
+ * Shu is only for things you can press (links and buttons). The wood color is only for lines and table heads.
+ */
+:root {
+  /* Shu: links and buttons (contrast 5.3 on the paper) */
+  --ifm-color-primary: #b5442a;
+  --ifm-color-primary-dark: #a33d26;
+  --ifm-color-primary-darker: #9a3a24;
+  --ifm-color-primary-darkest: #7f301d;
+  --ifm-color-primary-light: #c74b2e;
+  --ifm-color-primary-lighter: #cf4f31;
+  --ifm-color-primary-lightest: #d6664c;
+
+  /* Kinari paper and sumi ink */
+  --ifm-background-color: #fbfaf5;
+  --ifm-background-surface-color: #fbfaf5;
+  --ifm-font-color-base: #2f2219;
+  --ifm-font-color-secondary: #6b5a4c;
+  --ifm-heading-color: #3b2414;
+
+  /* Warm steps from the paper to the ink, for borders, hovers, muted text, and the text on buttons */
+  --ifm-color-emphasis-0: #fbfaf5;
+  --ifm-color-emphasis-100: #f5efe4;
+  --ifm-color-emphasis-200: #ece3d3;
+  --ifm-color-emphasis-300: #dccbad;
+  --ifm-color-emphasis-400: #c4ad8a;
+  --ifm-color-emphasis-500: #a08868;
+  --ifm-color-emphasis-600: #7d6650;
+  --ifm-color-emphasis-700: #5c4a3a;
+  --ifm-color-emphasis-800: #3e3127;
+  --ifm-color-emphasis-900: #2a211b;
+  --ifm-color-emphasis-1000: #1d1612;
+
+  /* Hinoki wood: the lines and the table heads, like the rim of a wooden box */
+  --quaver-wood: #dccbad;
+  --ifm-toc-border-color: var(--quaver-wood);
+  --ifm-hr-border-color: var(--quaver-wood);
+  --ifm-table-border-color: var(--quaver-wood);
+  --ifm-table-head-background: #f3ecdf;
+  --ifm-table-stripe-background: #f7f2e9;
+  --ifm-code-background: #f3ecdf;
+  --quaver-code-block: #f5efe4;
+
+  /* Ai: the color of the info notes */
+  --ifm-color-info: #165e83;
+  --ifm-color-info-dark: #145576;
+  --ifm-color-info-contrast-background: #e8eff3;
+  --ifm-color-info-contrast-foreground: #0f3f58;
+
+  /* Type: Zen Antique for the headings, the system font for the text */
+  --ifm-heading-font-family: 'Zen Antique', 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+  --ifm-heading-font-weight: 400;
+  --ifm-code-font-size: 95%;
+
+  /* Crisp edges like a wooden box, and no shadows */
+  --ifm-global-radius: 3px;
+  --ifm-navbar-shadow: none;
+  --docusaurus-highlighted-code-line-bg: rgba(59, 36, 20, 0.08);
+}
+
+[data-theme='dark'] {
+  /* Shu, made lighter so that it reads on the ink (contrast 5.5) */
+  --ifm-color-primary: #dd7350;
+  --ifm-color-primary-dark: #d85f37;
+  --ifm-color-primary-darker: #d6552a;
+  --ifm-color-primary-darkest: #b04622;
+  --ifm-color-primary-light: #e28769;
+  --ifm-color-primary-lighter: #e49176;
+  --ifm-color-primary-lightest: #ecaf9c;
+
+  /* Sumi paper and kinari letters (the colors of the dark logo) */
+  --ifm-background-color: #1e1915;
+  --ifm-background-surface-color: #262019;
+  --ifm-font-color-base: #ecdfcb;
+  --ifm-font-color-secondary: #c7b29b;
+  --ifm-heading-color: #f1e2cc;
+
+  --ifm-color-emphasis-0: #1e1915;
+  --ifm-color-emphasis-100: #262019;
+  --ifm-color-emphasis-200: #30281f;
+  --ifm-color-emphasis-300: #4a3c2e;
+  --ifm-color-emphasis-400: #66533f;
+  --ifm-color-emphasis-500: #87705a;
+  --ifm-color-emphasis-600: #a89079;
+  --ifm-color-emphasis-700: #c7b29b;
+  --ifm-color-emphasis-800: #e0cfb9;
+  --ifm-color-emphasis-900: #f1e2cc;
+  --ifm-color-emphasis-1000: #fbf5ea;
+
+  --quaver-wood: #4a3c2e;
+  --ifm-table-head-background: #2b241d;
+  --ifm-table-stripe-background: #231d18;
+  --ifm-code-background: #2b241d;
+  --quaver-code-block: #2b241d;
+
+  --ifm-color-info: #6fa8c8;
+  --ifm-color-info-dark: #589abf;
+  --ifm-color-info-contrast-background: #1a2a33;
+  --ifm-color-info-contrast-foreground: #cfe3ee;
+
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* The navbar sits on the paper, with one wood line under it */
+.navbar {
+  border-bottom: 1px solid var(--quaver-wood);
+}
+
+/* The logo in the navbar */
+.navbar__logo {
+  height: 2.2rem;
+}
+
+/* The second button is drawn in ink: an ink outline, filled with ink on hover */
+.button--secondary.button--outline {
+  --ifm-button-border-color: var(--ifm-heading-color);
+}
+
+/* Code blocks on warm paper instead of the gray of the code theme */
+.theme-code-block {
+  --prism-background-color: var(--quaver-code-block) !important;
+}
+
+.theme-code-block pre.prism-code {
+  background-color: var(--quaver-code-block) !important;
+}
+
+/* The footer is a block of sumi ink */
+.footer--dark {
+  --ifm-footer-background-color: #2a211b;
+  --ifm-footer-color: #e7d9c3;
+  --ifm-footer-link-color: #e7d9c3;
+  --ifm-footer-link-hover-color: #ecaf9c;
+  --ifm-footer-title-color: #fbfaf5;
+}
+
+[data-theme='dark'] .footer--dark {
+  --ifm-footer-background-color: #15110e;
+}
+
+/*
+ * Links from the other pages to Learn are quiet, like a note on a word: the color of the text, with a dotted wood line under it.
+ * They turn shu on hover. On the Learn pages themselves, the links between Learn pages stay normal.
+ */
+html:not([class*='docs-doc-id-learn/']) .theme-doc-markdown a[href*='/docs/learn/'] {
+  color: inherit;
+  text-decoration: underline dotted var(--ifm-color-emphasis-500);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+html:not([class*='docs-doc-id-learn/']) .theme-doc-markdown a[href*='/docs/learn/']:hover {
+  color: var(--ifm-color-primary);
+  text-decoration: underline solid currentColor;
+}
+
+/* Long math scrolls inside itself on a narrow screen */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}

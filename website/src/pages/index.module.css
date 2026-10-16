@@ -1,0 +1,42 @@
+/* The logo, the tagline, and the two buttons, with wide empty space around them */
+.hero {
+  padding: 5rem 0 3.5rem;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+}
+
+/* The brush 升 of the logo draws itself in stroke order, so it gets the room */
+.logo {
+  width: min(400px, 80vw);
+  height: auto;
+}
+
+/* The tagline in the face of the logo word */
+.tagline {
+  max-width: 34rem;
+  margin: 1.75rem auto 2.25rem;
+  font-family: var(--ifm-heading-font-family);
+  font-size: 1.35rem;
+  line-height: 1.6;
+  color: var(--ifm-heading-color);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* The points under the hero, after one wood line like the rim of a wooden box */
+.features {
+  padding: 2.5rem 0 4rem;
+  border-top: 1px solid var(--quaver-wood);
+}
+
+.featureTitle {
+  font-size: 1.3rem;
+}

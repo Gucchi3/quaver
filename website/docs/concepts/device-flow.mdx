@@ -1,0 +1,68 @@
+---
+title: "From Quaver to your device"
+description: "What Quaver exports for your device: model.json, which says what to compute, and model.bin, which holds every number packed for the device's memory."
+---
+
+import DeviceFlow from '@site/src/components/DeviceFlow';
+
+After QAT, Quaver exports the model as two files. `model.json` says what to compute, layer by layer. `model.bin` holds every number the device needs, packed so that you can write it into the memory of the device (for example PSRAM) as it is.
+
+<DeviceFlow />
+
+The numbers come from the model that you checked in the integer mode. So the device gets the same numbers that gave the bit-exact results.
+
+## model.json: what to compute
+
+`model.json` lists the layers in the order they run. For each layer, it gives:
+
+| Item | Example |
+|---|---|
+| The class and the name | `QuantConv2d`, `stem_conv` |
+| The inputs, by name | `images`, or the output of an earlier layer, so a residual add can take two |
+| The format and the shape of each input and output | uint8, `[1, 16, 32, 32]`, with the order of the axes |
+| The settings | kernel size, stride, padding, activation, the output range (0 to 255) |
+| Every data item | its role, format, shape, layout, and where it is in `model.bin` |
+
+The data items of a layer have fixed role names, the same in every layer of that class: `weight`, `bias`, `multiplier`, `shift`, `input_zero_point`, `output_zero_point`, and so on. Your device code can find each item by its role. A block of your own, such as a residual block, holds its layers inside it, with their names as a prefix: `conv1.weight`, `conv2.multiplier`.
+
+Here is part of the first layer of ResNet-8:
+
+```json
+{
+  "name": "stem_conv",
+  "class": "QuantConv2d",
+  "settings": {"kernel_size": [3, 3], "stride": 1, "padding": 1, "activation": "relu",
+               "weight_format": "int8", "output_format": "uint8", "output_min": 0, "output_max": 255},
+  "data": [
+    {"role": "weight", "format": "int8", "shape": [16, 3, 3, 3], "axes": ["out", "h", "w", "in"],
+     "bits": 8, "signed": true, "offset": 4, "size": 432},
+    {"role": "multiplier", "format": "uint16", "shape": [16], "offset": 644, "size": 32}
+  ]
+}
+```
+
+`offset` is the byte address in `model.bin`. If you write `model.bin` to memory at address A, the weights of this layer start at A + 4.
+
+## model.bin: the numbers, packed
+
+All the data items sit back to back in one file. They are packed by these rules:
+
+| Rule | Detail |
+|---|---|
+| INT codes | two's complement in their width |
+| FP codes | their own bit patterns: fp4 as E2M1 (sign, 2 exponent bits, 1 mantissa bit), ufp4 as E2M2, block scales as E4M3 |
+| 4-bit codes | two in each byte, the first code in the low 4 bits |
+| 2-bit codes | four in each byte, from the low bits up |
+| Other widths | widened to the next byte size: int6 is stored in 8 bits, uint10 in 16 bits |
+| Values of 2 bytes or more | little-endian (the bias in 32 bits, the multipliers in 16 bits) |
+| Alignment | each item starts at a multiple of `alignment` bytes (4 by default) |
+
+## Layout: channels last
+
+By default, Quaver stores the weights of a conv layer with the channels last: (out, height, width, in), often called HWC. Many small devices compute a conv this way, since the values of one pixel sit next to each other. You can choose channels first (CHW) for each layer instead.
+
+With channels last, the activations on the device are channels last too. When such a tensor is flattened and fed to a linear layer, its values come in the order (height, width, channel), not the (channel, height, width) of PyTorch. Quaver reorders the columns of that linear layer's weight to match, and writes this in `model.json`, so the result on the device is the same.
+
+## On your device
+
+Your device code walks through `model.json` (or a table that you make from it ahead of time). For each layer, it runs the integer steps of that class, with the data items at their offsets. [Device math](../api/device-math.md) lists the steps of each op, and [Export to your device](../guides/export.md) shows how to export a model.

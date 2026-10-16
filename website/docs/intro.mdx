@@ -1,0 +1,41 @@
+---
+title: "What is Quaver?"
+description: "What Quaver does, and which formats and layers it supports."
+---
+
+import SupportSheet from '@site/src/components/SupportSheet';
+
+Quaver is a quantization library for embedded devices. It quantizes AI models trained in PyTorch, and exports the data you need to run them on your device.
+
+## Features
+
+### Many formats and shapes
+
+Quantize image and language models in many formats, from INT8 down to [FP4](learn/int-fp.md) and NVFP4 (FP4 values with a small scale for each block of 16 values). You choose how many scales there are: one for the whole tensor, one for each channel, or one for each block (or token). You also choose how each scale is set: measured each time, set from a moving average of the range, or learned with LSQ or LSQ+. Every layer can run with integer math only, even recent ones such as SimA attention.
+
+The [list below](#what-quaver-supports) shows what Quaver supports. [Supported combinations](api/combinations.md) shows which of them work together.
+
+### Built for embedded devices
+
+Each Quaver layer has a training mode and an integer mode. The integer mode runs the same integer math as your device, so its outputs match the device bit for bit. You can use them as test vectors to check your hardware. You can also export the data your device needs, such as the integer weights, the multipliers and shifts, and the zero points, packed for the memory of your device.
+
+To learn more, see [Three modes](concepts/modes.md), [How the modes match bit for bit](concepts/bit-exact.md), [Device math](api/device-math.md), [Export to your device](guides/export.md), and [From Quaver to your device](concepts/device-flow.mdx).
+
+### Fast QAT
+
+[QAT](learn/qat.md) stays fast, even with exact integer math. In a training step, the CPU never waits for the GPU. So you can run the whole step as one CUDA graph. See [Fast training](concepts/fast-training.md).
+
+### Learn quantization
+
+The [Learn](learn/what-is-quantization.md) pages explain quantization, from scales and zero points to the integer math on your device. Terms in these docs, such as QAT, link to the Learn pages. These links have a dotted line, so you can tell them apart from the other links.
+
+## What Quaver supports
+
+<SupportSheet />
+
+## How to read these docs
+
+- First, install Quaver and run it with [Install](install.md) and [Try it in 5 minutes](quickstart.md).
+- Then read the [Guides](guides/overview.md) in order. They build one program step by step: you write a quantizer, make your own layer, add it to your training loop, check it with the integer mode, and export it for your device.
+- The [Examples](examples/resnet8.md) show Quaver in real models: ResNet-8, and a CNN + ViT.
+- To learn how quantization works, read [Learn](learn/what-is-quantization.md). To look up a function or a class, see the [API reference](api/index.md).

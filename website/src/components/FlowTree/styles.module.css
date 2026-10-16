@@ -1,0 +1,158 @@
+/*
+ * A call tree on the paper: wood guide lines for the depth, the function names in code type, and what each call is for in a quiet line beside it.
+ * The tabs are the modes. Private helpers are lighter, since the API reference does not list them.
+ */
+.flow {
+  margin: 1.5rem 0 2rem;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 1px solid var(--quaver-wood);
+}
+
+.tab,
+.tabActive {
+  padding: 0.45rem 0.9rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--ifm-font-color-secondary);
+  cursor: pointer;
+}
+
+.tabActive {
+  border-bottom-color: var(--ifm-color-primary);
+  color: var(--ifm-heading-color);
+}
+
+.tab:hover {
+  color: var(--ifm-heading-color);
+}
+
+.about {
+  margin: 0.8rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.action {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--quaver-wood);
+  border-radius: var(--ifm-global-radius);
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ifm-font-color-base);
+  cursor: pointer;
+}
+
+.action:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.tree,
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list {
+  margin-left: 0.55rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--quaver-wood);
+}
+
+.tree .item,
+.list .item {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.12rem 0;
+}
+
+.internal {
+  opacity: 0.6;
+}
+
+.toggle {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  align-self: center;
+}
+
+.caret,
+.caretOpen {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--ifm-font-color-secondary);
+  transition: transform 0.12s;
+}
+
+.caretOpen {
+  transform: rotate(90deg);
+}
+
+.leaf {
+  flex: none;
+  width: 1.1rem;
+}
+
+.label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.55rem;
+  min-width: 0;
+}
+
+.module {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ifm-heading-color);
+}
+
+.name {
+  padding: 0 0.3rem;
+  font-size: 0.84rem;
+}
+
+.count {
+  font-size: 0.78rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.note {
+  font-size: 0.82rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret,
+  .caretOpen {
+    transition: none;
+  }
+}
