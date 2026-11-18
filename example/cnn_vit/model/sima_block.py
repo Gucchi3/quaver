@@ -1,5 +1,5 @@
 # @file sima_block.py
-# @brief FP32 transformer block with SimA attention and an MLP of 1x1 convs, with BatchNorm in place of LayerNorm
+# @brief SimA の attention と 1x1 conv の MLP を持ち、LayerNorm の代わりに BatchNorm を使う FP32 の transformer のブロック
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -12,15 +12,15 @@ from .sima_attention import SimaAttention
 
 class SimaBlock(nn.Module):
     '''
-    #* FP32 transformer block on (B, C, H, W): x + attention(x), then x + MLP(x), where the MLP is two 1x1 convs with ReLU between them.
-    #? Each conv has its own BatchNorm in place of LayerNorm (like LeViT), and fold_batch_norms() folds them into the convs.
-    #! The layer names are those of QuantSimaBlock, so the folded weights load into it.
+    #* (B, C, H, W) を受け取る FP32 の transformer のブロック。x + attention(x)、次に x + MLP(x) を求める。MLP は、間に ReLU を挟んだ 2 つの 1x1 conv。
+    #? 各 conv は LayerNorm の代わりに自分の BatchNorm を持ち（LeViT と同じ）、fold_batch_norms() がそれを conv に畳み込む。
+    #! 層の名前は QuantSimaBlock と同じなので、畳み込んだ重みをそのまま読み込める。
     '''
     
     def __init__(self, channels: int, heads: int, key_dim: int, value_dim: int, hidden: int) -> None:
         '''
-        #* Make the attention and the two convs of the MLP with their BatchNorms.
-        #? The last BatchNorm of the MLP starts at 0, so the block starts as the identity.
+        #* attention と、MLP の 2 つの conv を、それぞれの BatchNorm と一緒に作る。
+        #? MLP の最後の BatchNorm は 0 から始めるので、ブロックは恒等写像から始まる。
         '''
         
         super().__init__()
@@ -35,7 +35,7 @@ class SimaBlock(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         '''
-        #* Run the block: the attention and the MLP, each added to the residual.
+        #* ブロックを動かす: attention と MLP の出力を、それぞれ残差に足す。
         '''
         
         x = x + self.attention(x)

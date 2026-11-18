@@ -1,15 +1,15 @@
 # @file model_export.py
-# @brief Export a model in the integer mode for the device: model.json (layers, settings, formats, and where each data item is) and model.bin (every data item packed, ready for PSRAM)
+# @brief integer mode のモデルをデバイス用に書き出す: model.json（層、設定、形式、各データの場所）と model.bin（すべてのデータを詰めたもので、そのまま PSRAM に置ける）
 # @author Kohei Yamaguchi, Claude
 
 ##########################################################
 '''
-Add a device op to the export
-1. Write the op with device_define() (formats/device.py), and call it from the integer function of the op. Note its output with params_note() when its parameters are known there.
-2. Add "name: {tensor argument or output index: its format argument, or a format name}" to EXPORT_FORMATS, so its codes get their format.
-3. Add "name: {tensor argument: role}" to EXPORT_ROLES, so its data items get the same name in every layer (weight, multiplier, ...).
-Add a layer class
-1. Give it integer_mode, and run its integer mode with device ops. Its settings go to the JSON when their names are in EXPORT_SETTINGS.
+書き出しにデバイスの op を足すとき
+1. op を device_define()（formats/device.py）で書き、op の integer の関数から呼ぶ。そこでパラメータが分かるときは、出力に params_note() で印を付ける。
+2. EXPORT_FORMATS に "名前: {テンソルの引数か出力の番号: その形式の引数、または形式の名前}" を足し、code に形式が付くようにする。
+3. EXPORT_ROLES に "名前: {テンソルの引数: 役割}" を足し、データがどの層でも同じ名前（weight、multiplier など）になるようにする。
+層のクラスを足すとき
+1. integer_mode を持たせ、integer mode をデバイスの op で動かす。設定は、名前が EXPORT_SETTINGS にあるときに JSON に入る。
 2. Write its role names and settings in docs/設計.md (9章, "実機との約束").
 '''
 ##########################################################
@@ -34,8 +34,8 @@ from .model_outputs import ModelOutputs
 from .pack          import pack_codes
 from .types         import ExportLayout
 
-# The format of the codes of each device op: tensor arguments by name, and outputs by index, give the argument that names their format, or the name of the format itself
-# (zero points have the format of their codes, multipliers are 16 bits, and shifts fit int8: -30 to 94)
+# デバイスの op ごとの code の形式: テンソルの引数は名前で、出力は番号で、形式の名前を持つ引数か、形式の名前そのものを書く
+# （zero point はその code と同じ形式、multiplier は 16 bit、shift は int8 に入る: -30〜94）
 EXPORT_FORMATS: dict[str, dict[str | int, str]] = {
     "quantize"           : {"zero_point": "number_format", 0: "number_format"},
     "accumulate_conv2d"  : {"q_x": "x_format", "x_zero_point": "x_format", "x_block": "x_scale_format", "q_w": "w_format", "w_zero_point": "w_format", "w_block": "w_scale_format", 0: "out_format"},
@@ -52,7 +52,7 @@ EXPORT_FORMATS: dict[str, dict[str | int, str]] = {
     "fixed_point"        : {0: "uint16", 1: "int8"},
 }
 
-# The role of each constant argument of an op: the name of the data item in its layer (the same in every instance of a class). Others are named "op_argument"
+# op の定数の引数ごとの役割: その層の中でのデータの名前（同じクラスのどのインスタンスでも同じ）。ほかの引数は "op_引数" という名前になる
 EXPORT_ROLES: dict[str, dict[str, str]] = {
     "quantize"           : {"scale": "scale", "zero_point": "zero_point"},
     "accumulate_conv2d"  : {"x_zero_point": "input_zero_point", "x_block": "input_block_codes", "q_w": "weight", "w_zero_point": "weight_zero_point", "w_block": "weight_block_codes"},
@@ -68,20 +68,20 @@ EXPORT_ROLES: dict[str, dict[str, str]] = {
     "aten.add"           : {"other": "bias"},
 }
 
-# The roles of outputs after the first one, by op and index: the layer output that gives them is "output_role"
+# 1 つ目より後ろの出力の役割（op と番号ごと）: それを出す層の出力は "output_役割" になる
 EXPORT_OUTPUTS: dict[str, dict[int, str]] = {
     "block_quantize": {1: "block_codes"},
     "normalize_l1"  : {1: "peak"},
 }
 
-# The settings of a layer that go to the JSON, when the module has them
+# module が持っているときに、JSON に入る層の設定
 EXPORT_SETTINGS = ("stride", "padding", "dilation", "groups", "activation", "style", "round_mode", "heads", "key_dim", "value_dim", "neq_scope", "output_block", "kernel_size")
 
-# The names of the layouts (hwc and chw are the names for 2-D), and the names of the spatial axes for 1, 2, and 3 of them
+# レイアウトの名前（2 次元では hwc と chw と呼ぶ）と、空間の軸が 1、2、3 個のときの軸の名前
 EXPORT_LAYOUTS = {"channels_last": "channels_last", "channels_first": "channels_first", "hwc": "channels_last", "chw": "channels_first"}
 EXPORT_SPATIAL = {1: ["k"], 2: ["h", "w"], 3: ["d", "h", "w"]}
 
-# The names of the torch types of the values
+# 値の torch の型の名前
 EXPORT_TYPES = {
     torch.bool   : "bool"   ,
     torch.uint8  : "uint8"  ,
@@ -98,17 +98,17 @@ EXPORT_TYPES = {
 
 def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str | Path, alignment: int = 4, layout: dict[str, ExportLayout] | None = None, json_values: bool = True) -> dict[str, Any]:
     '''
-    #* Export a model in the integer mode to folder/model.json and folder/model.bin for the device, and return the JSON as a dict.
-    #? model.json: the layers in order (blocks hold "layers", other layers their "ops"), their inputs and outputs by name with format and shape, their settings, and for every data item its role, format, encoding, shape, layout, offset, and size.
-    #? model.bin: every data item packed back to back, each starting at a multiple of alignment bytes. An offset is the address in PSRAM, counted from the start of the file.
-    #? torch.export captures forward(*inputs), and every value that does not depend on the inputs is computed here (weight codes, bias, M0 and n, zero points, block codes). The ops inside the layers stay as detail, which the reference reader runs.
-    #? layout maps layer paths or class names to "channels_last" (the default, "hwc" for 2-D) or "channels_first" ("chw"). A child layer takes the layout of its block. channels_last stores conv weights as (out, spatial..., in).
-    #? When a flatten of channels_last activations feeds a Linear, the columns of its weight are reordered to (spatial..., channel), so the device result is the same.
-    #? json_values=True also writes the numbers of every data item in decimal ("values", in the order of model.bin, nested by stored_shape): INT codes as integers, FP codes as their real values (fp4 1.5), floats as floats.
-    #! Put the model in the integer mode (switch_integer_mode) and in eval() first. forward() may return tensors, pairs (codes, QuantParams), or a tuple or list of them. Needs numpy (the "export" extra).
+    #* integer mode のモデルを、デバイス用に folder/model.json と folder/model.bin に書き出し、JSON を dict で返す。
+    #? model.json: 層を順に並べる（ブロックは "layers"、ほかの層は "ops" を持つ）。層の入力と出力を名前で書き、形式と形、設定、各データの役割、形式、encoding、形、レイアウト、offset、大きさを書く。
+    #? model.bin: すべてのデータをすき間なく詰め、それぞれを alignment バイトの倍数から始める。offset は PSRAM の中の番地で、ファイルの初めから数える。
+    #? torch.export が forward(*inputs) を記録し、入力によらない値はここで計算する（重みの code、バイアス、M0 と n、zero point、ブロックの code）。層の中の op は詳しい情報として残し、参照の読み手がそれを動かす。
+    #? layout は、層のパスかクラスの名前を "channels_last"（標準。2 次元では "hwc"）か "channels_first"（"chw"）に対応させる。子の層はブロックのレイアウトを受け継ぐ。channels_last では、conv の重みを (out, spatial..., in) の順に置く。
+    #? channels_last の活性化を平らにして Linear に入れるときは、その重みの列を (spatial..., channel) の順に並べ替えるので、デバイスの結果は同じになる。
+    #? json_values=True のときは、すべてのデータの数も 10 進で書く（"values"。model.bin と同じ順で、stored_shape の形に入れ子にする）。INT の code は整数、FP の code は実数の値（fp4 なら 1.5）、float は float で書く。
+    #! 先にモデルを integer mode（switch_integer_mode）と eval() にしておく。forward() はテンソル、組 (codes, QuantParams)、またはそれらの tuple か list を返してよい。numpy が要る（"export" の extra）。
     '''
     
-    # Check here at the entry: the integer mode, eval(), requantization with a multiplier and a shift, the alignment, and the names of the layouts
+    # この入口で確かめる: integer mode、eval()、multiplier と shift での requantize、alignment、レイアウトの名前
     if not all(getattr(module, "integer_mode") for module in model.modules() if hasattr(module, "integer_mode")):
         raise ValueError("Put the model in the integer mode first: switch_integer_mode(model, True).")
     if any(module.training for module in model.modules()):
@@ -120,9 +120,9 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
     if any(value not in EXPORT_LAYOUTS for value in (layout or {}).values()):
         raise ValueError(f"Unknown layout in {layout}. Available: {', '.join(EXPORT_LAYOUTS)}")
     
-    # Capture the graph without gradients (so no_grad() inside the layers adds nothing). ModelOutputs gives the codes of the pairs that forward() returns, with notes of their parameters
-    # torch.export reads the old TF32 flag of cuDNN, which PyTorch 2.14 allows only while conv and RNN are both "tf32", so not after precision_disable_tf32().
-    # The flags go back right after. The integer mode computes in float64 and int64 and the capture runs no real math, so TF32 changes nothing here
+    # 勾配なしでグラフを記録する（層の中の no_grad() は何もしない）。ModelOutputs は、forward() が返す組の code を、そのパラメータの印を付けて返す
+    # torch.export は cuDNN の古い TF32 のフラグを読む。PyTorch 2.14 はこれを conv と RNN がどちらも "tf32" のときしか許さないので、precision_disable_tf32() のあとでは読めない。
+    # フラグはすぐあとで元に戻す。integer mode は float64 と int64 で計算し、記録のときは実際の計算をしないので、ここで TF32 は何も変えない
     wrapped    = ModelOutputs(model)
     cudnn      = [getattr(torch.backends.cudnn, kind) for kind in ("conv", "rnn")]
     precisions = [backend.fp32_precision for backend in cudnn]
@@ -135,7 +135,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         for backend, precision in zip(cudnn, precisions):
             backend.fp32_precision = precision
     
-    # The values of the parameters, the buffers, and the constants, and the names of the arguments of forward()
+    # パラメータ、buffer、定数の値と、forward() の引数の名前
     signature = program.graph_signature
     tensors   = {**program.state_dict, **program.constants}
     sources   = {**signature.inputs_to_parameters, **signature.inputs_to_buffers, **signature.inputs_to_lifted_tensor_constants}
@@ -143,16 +143,16 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
     nodes     = [node for node in program.graph.nodes if node.op == "call_function"]
     arguments = [name for name, parameter in inspect.signature(model.forward).parameters.items() if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)]
     
-    # The inputs keep the names of the arguments of forward()
+    # 入力は forward() の引数の名前のままにする
     rename: dict[str, str] = {str(name): str(argument) for name, argument in zip(signature.user_inputs, arguments)} if len(arguments) >= len(signature.user_inputs) else {}
     
-    # Fold every node whose inputs are all known: the scales, M0 and n, the codes of the weights and their block scales, and the bias codes
+    # 入力がすべて分かっているノードを畳み込む: scale、M0 と n、重みの code とそのブロックの scale、バイアスの code
     for node in nodes:
         if all(value.name in known for value in node.all_input_nodes):
             args, kwargs     = map_arg((node.args, node.kwargs), lambda value: known[value.name])
             known[node.name] = cast(Callable[..., Any], node.target)(*cast(tuple, args), **cast(dict, kwargs))
     
-    # Notes and casts that keep every value are not ops: each one stands for the value it reads
+    # 印と、値を変えない型の変換は op ではない。それぞれ、読んでいる値の代わりになる
     notes = {node.name: node for node in nodes if node.target is torch.ops.quaver.note.default}
     alias = {}
     for node in nodes:
@@ -167,13 +167,13 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         if node.name in notes or keeps:
             alias[node.name] = alias.get(source.name, rename.get(source.name, source.name))
     
-    # The values that the outputs need, walking back from the outputs (known values become data items there)
+    # 出力に要る値を、出力から逆にたどって集める（分かっている値は、そこでデータになる）
     results: list[Node] = []
     map_arg(program.graph.output_node().args[0], results.append)
     if any(node.name in known for node in results):
         raise ValueError("An output does not depend on the inputs, so it has no node to export.")
     
-    # Walk back over the nodes that are not known (a note or a kept cast leads to the value it reads)
+    # 分かっていないノードを逆にたどる（印や残した型の変換は、それが読む値へ進む）
     needed  = set()
     pending = list(results)
     while pending:
@@ -184,10 +184,10 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             needed.add(node.name)
             pending.extend(node.all_input_nodes)
     
-    # The metadata of every value: the format, and the scale and the zero point when they are known (a value of the graph by name). The inputs say their type
+    # すべての値の情報: 形式と、分かっているときは scale と zero point（グラフの値なら名前で書く）。入力は型を書く
     metadata: dict[str, dict[str, Any]] = {str(rename.get(node.name, node.name)): {"format": EXPORT_TYPES[node.meta["val"].dtype]} for node in program.graph.nodes if node.name in signature.user_inputs}
     
-    # One record for each needed op, and the chain of layers (modules with integer_mode, outside in, below the model) that it runs in
+    # 要る op ごとに記録を 1 つ作り、それが動く層のつながり（integer_mode を持つ module を、外から内へ、モデルより下だけ）を書く
     constants    : dict[str, dict] = {}
     biases       : dict[str, str]  = {}
     labels       : dict[str, str]  = {}
@@ -195,14 +195,14 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
     records      : list[dict]      = []
     for node in nodes:
         
-        # A note writes the format, the scale, and the zero point on the value it notes: constants as numbers, and values of the graph by name (a note of a constant folds away)
+        # 印は、印を付けた値に、形式、scale、zero point を書く。定数は数で、グラフの値は名前で書く（定数の印は畳み込まれて消える）
         if node.name in notes and node.name not in alias:
             continue
         if node.name in notes:
             target                          = alias[node.name]
             _, scale, zero_point, form, key = node.args
             
-            # The format (a wide note keeps int32 on a sum that the export wrote as int32: activation_integer() notes the accumulator with its wide format), then the scale and the zero point
+            # 形式（wide の印は、書き出しが int32 で書いた和の int32 を残す: activation_integer() は累積に wide の形式の印を付ける）、次に scale と zero point
             narrowed                                  = form == WIDE_ACCUMULATOR_FORMAT.name and metadata.get(target, {}).get("format") == ACCUMULATOR_FORMAT.name
             metadata.setdefault(target, {})["format"] = ACCUMULATOR_FORMAT.name if narrowed else cast(str, form)
             for name, value in ((key, scale), ("zero_point", zero_point)):
@@ -216,7 +216,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         if not hasattr(node.target, "_schema"):
             raise ValueError(f"Cannot export {node.target} ({node.name}): only torch ops and quaver device ops can be exported.")
         
-        # The schema, the format names of the device op, the arguments by name, and the layers
+        # スキーマ、デバイスの op の形式の名前、名前で書いた引数、層
         schema       = getattr(node.target, "_schema")
         domain, name = schema.name.split("::")
         spec         = EXPORT_FORMATS.get(name, {}) if domain == "quaver" else {}
@@ -227,7 +227,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         roles        = []
         attributes   = {}
         
-        # An accumulator says int32 when its worst case fits 32 bits (accumulate_bits(), with the largest |code| of the bias added right after it), and the bias takes the format of its accumulator
+        # 累積は、一番悪い場合が 32 bit に入るときに int32 と書く（accumulate_bits()。そのすぐあとに足すバイアスの |code| の最大も含める）。バイアスは、その累積の形式にする
         if name.startswith("accumulate_") and domain == "quaver":
             adds  = [user for user in node.users if user.target is torch.ops.aten.add.Tensor and isinstance(user.args[1], Node) and user.args[1].name in known]
             peak  = max((int(torch.as_tensor(known[cast(Node, user.args[1]).name]).abs().max()) for user in adds), default=0)
@@ -238,7 +238,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 bound["out_format"] = ACCUMULATOR_FORMAT.name
             biases.update({user.name: cast(str, bound["out_format"]) for user in adds})
         
-        # Other arguments are attributes: lists, numbers, strings, and torch types by name (devices are left out)
+        # ほかの引数は属性にする: list、数、文字列、名前で書いた torch の型（device は書かない）
         for argument in schema.arguments:
             value = bound[argument.name]
             if "Tensor" not in str(argument.type):
@@ -248,7 +248,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                     attributes[argument.name] = value
                 continue
             
-            # Tensor arguments are inputs (None for None). A list of tensors also says its length
+            # テンソルの引数は入力にする（None なら None）。テンソルの list は長さも書く
             if isinstance(value, (list, tuple)):
                 attributes[f"{argument.name}_count"] = len(value)
             for position, item in enumerate(value if isinstance(value, (list, tuple)) else [value]):
@@ -258,7 +258,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                     roles.append(EXPORT_ROLES.get(name if domain == "quaver" else f"{domain}.{name}", {}).get(argument.name, ""))
                     continue
                 
-                # A new data item, named by its first use: the path of the layer and the role of the argument (a second use of one role in a layer adds _2)
+                # 新しいデータ。最初に使った所で名前を付ける: 層のパスと引数の役割（同じ層で同じ役割を 2 回使うと _2 を付ける）
                 role           = EXPORT_ROLES.get(name if domain == "quaver" else f"{domain}.{name}", {}).get(argument.name, f"{name}_{argument.name}")
                 label          = f"{chain[-1][1]}.{role}" if chain else role
                 label          = label if label not in constants else next(f"{label}_{count}" for count in range(2, len(constants) + 3) if f"{label}_{count}" not in constants)
@@ -268,12 +268,12 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 if not format_name:
                     format_name = biases.get(node.name) or (EXPORT_TYPES[tensor.dtype] if tensor.dtype.is_floating_point else "int32" if tensor.numel() == 0 or (-2**31 <= int(tensor.min()) and int(tensor.max()) < 2**31) else "int64")
                 
-                # The data item (its role keeps the _2 of a second use)
+                # データ（2 回目に使った役割は _2 を付けたままにする）
                 constants[label] = {"role": label.removeprefix(f"{chain[-1][1]}.") if chain else label, "tensor": tensor, "format": format_name, "path": chain[-1][1] if chain else ""}
                 names.append(label)
                 roles.append(role)
         
-        # Outputs: one value, or the values that getitem takes out of a tuple (None for the parts that nothing uses)
+        # 出力: 値 1 つか、getitem が tuple から取り出す値（何も使わない部分は None）
         if isinstance(node.meta["val"], (list, tuple)):
             parts   = {user.args[1]: user for user in node.users if user.target is operator.getitem}
             outputs = [parts[index].name if index in parts else None for index in range(len(node.meta["val"]))]
@@ -282,7 +282,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             outputs = [node.name]
             shapes  = [node.meta["val"]]
         
-        # The format of each output: from the op, or kept from the first input that is a value of the same type (with its scale and zero point when the shape stays or the scale is one number)
+        # 各出力の形式: op から決めるか、同じ型の値である最初の入力から受け継ぐ（形が変わらないか scale が 1 つの数のときは、scale と zero point も受け継ぐ）
         first = next((item.meta.get("val") for item in node.all_input_nodes if item.name not in known)                                                    , None)
         kept  = next((metadata.get(alias.get(item.name, rename.get(item.name, item.name)), {}) for item in node.all_input_nodes if item.name not in known), {}  )
         for index, (output, value) in enumerate(zip(outputs, shapes)):
@@ -296,24 +296,24 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 continue
             metadata[output] = {key: item for key, item in kept.items() if key == "format" or tuple(first.shape) == tuple(value.shape) or not isinstance(item, list)}
         
-        # The op step (with the overload of a torch op that is not the default one)
+        # op の手順（torch の op が標準でない overload のときは、それも書く）
         step = {"op": f"{domain}.{name}", "inputs": names, "outputs": outputs, "attributes": attributes}
         if getattr(node.target, "_overloadname", "default") != "default":
             step["overload"] = getattr(node.target, "_overloadname")
         records.append({"step": step, "inputs": names, "roles": roles, "outputs": outputs, "chain": chain, "groups": []})
         named_outputs.update({cast(str, outputs[index]): role for index, role in EXPORT_OUTPUTS.get(name if domain == "quaver" else "", {}).items() if outputs[index]})
     
-    # The outputs of the model (the codes of a pair carry the note of its parameters)
+    # モデルの出力（組の code には、そのパラメータの印が付いている）
     outputs_needed = [alias.get(node.name, node.name) for node in results]
     
-    # Group the records into layer calls: a run of records in one call of a layer is one group, and groups nest like the modules
+    # 記録を層の呼び出しにまとめる: 1 つの層の 1 回の呼び出しの中の、続いた記録を 1 つのグループにし、グループは module と同じように入れ子にする
     root  : dict           = {"id": 0, "items": [], "overload": "", "layout": EXPORT_LAYOUTS[(layout or {}).get("", "channels_last")]}
     groups: list[dict]     = [root]
     calls : dict[str, int] = {}
     for record in records:
         parent = root
         
-        # Walk down the chain, and start a new group where a new call of a layer begins. A layer takes its layout from its path, its class, or its block
+        # 層のつながりを下へたどり、層の新しい呼び出しが始まる所で新しいグループを始める。層のレイアウトは、パス、クラス、ブロックのどれかから決める
         for key, place, kind in record["chain"]:
             last   = parent["items"][-1] if parent["items"] else None
             if last is None or last.get("key") != key:
@@ -327,7 +327,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             record["groups"].append(parent["id"])
         parent["items"].append(record)
     
-    # The inputs of each group (read inside, made outside) and its outputs (made inside, and read outside or by the model)
+    # 各グループの入力（中で読み、外で作るもの）と出力（中で作り、外かモデルが読むもの）
     for group in groups[1:]:
         inside           = [record for record in records if group["id"] in record["groups"]]
         made             = {name for record in inside for name in record["outputs"] if name}
@@ -335,7 +335,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         group["inputs"]  = list(dict.fromkeys(name for record in inside for name in record["inputs"] if name and name not in made and name not in constants))
         group["outputs"] = list(dict.fromkeys(name for record in inside for name in record["outputs"] if name in read)                                      )
     
-    # Readable names for the values that layers give: "path.output" (then "path.output_role" or "path.output_2"), outer layers first
+    # 層が出す値の読みやすい名前: "パス.output"（次は "パス.output_役割" か "パス.output_2"）。外の層から先に付ける
     edges: dict[str, str] = {}
     for group in groups[1:]:
         for index, name in enumerate(group["outputs"]):
@@ -347,11 +347,11 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
     for group in groups[1:]:
         group["inputs"], group["outputs"] = [edges.get(name, name) for name in group["inputs"]], [edges.get(name, name) for name in group["outputs"]]
     
-    # The outputs of the model under these names, and the record that makes each value
+    # この名前で書いたモデルの出力と、それぞれの値を作る記録
     outputs_needed = [edges.get(name, name) for name in outputs_needed]
     makers         = {name: record for record in records for name in record["outputs"] if name}
     
-    # The format, the shape, and the parameters of every needed value, under its final name
+    # 要る値すべての形式、形、パラメータを、最後の名前で書く
     values: dict[str, dict[str, Any]] = {}
     for node in program.graph.nodes:
         value = node.meta.get("val")
@@ -361,7 +361,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 raise ValueError(f"The value {node.name} has the type {value.dtype}, which the export does not handle.")
             values[edges.get(name, name)] = {"name": edges.get(name, name), **metadata.get(name, {}), "shape": list(value.shape)}
     
-    # The settings of each layer call: the settings of its module, its shape, its layout, the formats of its first input and output, and the range of the output codes
+    # 層の呼び出しごとの設定: module の設定、形、レイアウト、最初の入力と出力の形式、出力の code の範囲
     for group in groups[1:]:
         module   = group["module"]
         settings = {key: getattr(module, key) for key in EXPORT_SETTINGS if isinstance(getattr(module, key, None), (bool, int, str, tuple, list))}
@@ -374,20 +374,20 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
             settings["block_size"] = getattr(module, "blocks").block_size
         settings.update(layout=group["layout"])
         
-        # The formats of the first input, of the first output, and of the weight, and the range of the output codes
+        # 最初の入力、最初の出力、重みの形式と、出力の code の範囲
         sources = {"input_format": values.get(group["inputs"][0], {}), "output_format": values.get(group["outputs"][0], {}), "weight_format": constants.get(f"{group['overload']}.weight", {})}
         settings.update({key: source["format"] for key, source in sources.items() if source.get("format")})
         if settings.get("output_format"):
             named = build_format(str(settings["output_format"]))
             settings.update(output_min=round(named.min_value / named.step_min), output_max=round(named.max_value / named.step_min))
         
-        # Lists for tuples, and whether the layer works on images (it has a kernel)
+        # tuple は list にし、層が画像を扱うか（カーネルを持つか）を書く
         group["settings"] = {key: [*value] if isinstance(value, (tuple, list)) else value for key, value in settings.items()}
         group["spatial"]  = "kernel_size" in group["settings"]
     for group in reversed(groups[1:]):
         group["spatial"] = group["spatial"] or any(item.get("spatial") for item in group["items"])
     
-    # The layout of the images at the inputs and the outputs of layers (rank 4 or more, and rank 3 at layers with a kernel): channels_last stores (batch, spatial..., channel)
+    # 層の入力と出力での画像のレイアウト（rank 4 以上と、カーネルを持つ層での rank 3）: channels_last は (batch, spatial..., channel) の順に置く
     for group in groups[1:]:
         for name in [*group["inputs"], *group["outputs"]]:
             rank    = len(values[name]["shape"]) if name in values else 0
@@ -398,7 +398,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 values[name]["layout"] = chosen
                 values[name]["axes"]   = ["batch", *spatial, "channel"] if chosen == "channels_last" else ["batch", "channel", *spatial]
     
-    # The data items: each one in its stored order (layout, blocks once, columns of a flattened input reordered), packed back to back with the alignment
+    # データ: それぞれを置く順（レイアウト、ブロックは 1 回だけ、平らにした入力のための列の並べ替え）にし、alignment を守ってすき間なく詰める
     blob    = bytearray()
     entries = {group["overload"]: [] for group in groups}
     for label, constant in constants.items():
@@ -406,7 +406,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         tensor = constant["tensor"]
         item   = {"role": constant["role"], "name": label, "format": constant["format"], "shape": list(tensor.shape)}
         
-        # Weights with spatial axes: channels_last keeps (out, spatial..., in). Block codes are kept once for each block of the input axis
+        # 空間の軸を持つ重み: channels_last は (out, spatial..., in) の順にする。ブロックの code は、入力の軸のブロックごとに 1 回だけ置く
         if constant["role"] in ("weight", "weight_block_codes") and tensor.ndim >= 3:
             size    = group["settings"].get("block_size") if constant["role"] == "weight_block_codes" else None
             if size and tensor.shape[1] % size == 0 and tensor.shape[1] > 1:
@@ -422,7 +422,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 item["layout"] = "channels_first"
                 item["axes"]   = ["out", inner, *spatial]
         
-        # Linear weights: (out, in). A flatten of channels_last images before the layer reorders the columns to (spatial..., channel), unless every spatial axis has size 1
+        # Linear の重み: (out, in)。層の前で channels_last の画像を平らにするときは、列を (spatial..., channel) の順に並べ替える。ただし、空間の軸の大きさがすべて 1 なら並べ替えない
         elif constant["role"] in ("weight", "weight_block_codes") and tensor.ndim == 2:
             maker  = makers.get(group["inputs"][0]) if group["inputs"] else None
             source = values.get(cast(str, maker["inputs"][0])) if maker and maker["step"]["op"] == "aten.flatten" else None
@@ -434,40 +434,40 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 spatial                  = EXPORT_SPATIAL.get(len(spatial_sizes), [f"s{index}" for index in range(len(spatial_sizes))])
                 item["reorder"]          = {"from": ["channel", *spatial], "to": [*spatial, "channel"], "shape": [channels, *spatial_sizes]}
             
-            # The weight of a Linear is (out, in) in both layouts
+            # Linear の重みは、どちらのレイアウトでも (out, in)
             item["layout"] = "row_major"
             item["axes"]   = ["out", "in"]
         
-        # Other data (bias, zero points, M0 and n, clamps, scales): the axes of size 1 are left out
+        # ほかのデータ（バイアス、zero point、M0 と n、clamp、scale）: 大きさ 1 の軸は書かない
         else:
             kept           = [index for index, size in enumerate(tensor.shape) if size != 1]
             tensor         = tensor.reshape([tensor.shape[index] for index in kept])
             item["layout"] = "flat"
             item["axes"]   = ["out" if constant["role"].startswith("weight") else "channel"] if len(kept) == 1 else [f"axis{index}" for index in kept]
         
-        # Pack it at the next aligned offset
+        # 次の alignment の offset に詰める
         packed, encoding = pack_codes(tensor.contiguous(), constant["format"])
         blob.extend(bytes(-len(blob) % alignment))
         item.update(stored_shape=list(tensor.shape), **encoding, offset=len(blob), size=len(packed))
         blob.extend(packed)
         entries[group["overload"]].append(item)
         
-        # The same numbers in decimal, in the stored order: INT codes as integers, FP codes as the real values of the format, floats as they are
+        # 同じ数を、置く順に 10 進で書く: INT の code は整数、FP の code は形式の実数の値、float はそのまま
         if json_values:
             named          = None if constant["format"] in ("float32", "float64") else build_format(constant["format"])
             item["values"] = tensor.double().tolist() if named is None else (tensor.double() * named.step_min).tolist() if named.kind == "fp" else tensor.long().tolist()
     
-    # The JSON of each layer: its class, inputs and outputs with their formats and shapes, settings, data items, and its children ("layers", with the ops of the block between them) or its ops
+    # 各層の JSON: クラス、形式と形付きの入力と出力、設定、データ、子（"layers"。ブロックの op を子の間に並べる）か op
     for group in reversed(groups):
         steps = [item["step"] if "step" in item else item["json"] for item in group["items"]]
         if group is root:
             continue
         
-        # A block holds its children and the ops between them in "layers", and a layer without children holds its ops in "ops"
+        # ブロックは子と、その間の op を "layers" に持ち、子のない層は op を "ops" に持つ
         group["json"] = {"name": group["overload"], "class": group["kind"], "inputs": [values[name] for name in group["inputs"]], "outputs": [values[name] for name in group["outputs"]], "settings": group["settings"],
                          "data": entries[group["overload"]], ("layers" if any("json" in item for item in group["items"]) else "ops"): steps}
     
-    # The model: the file format, the inputs and the outputs, the data items outside the layers, the layers, and every value
+    # モデル: ファイルの形式、入力と出力、層の外のデータ、層、すべての値
     exported = {
         "quaver"     : 1,
         "alignment"  : alignment,
@@ -482,7 +482,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
         "values"     : values,
     }
     
-    # The JSON text: a list of only numbers or strings stays on one line (one row of "values" is one line), and the rest is indented. A copy holds marks in place of those lists
+    # JSON の文字列: 数か文字列だけの list は 1 行にし（"values" の 1 行が 1 行になる）、ほかは字下げする。写しには、その list の代わりに印を入れておく
     marked = json.loads(json.dumps(exported))
     rows   = []
     stack  = [marked]
@@ -496,7 +496,7 @@ def model_export(model: nn.Module, inputs: tuple[torch.Tensor, ...], folder: str
                 stack.append(child)
     text   = re.sub(r'"\\u0000(\d+)"', lambda found: json.dumps(rows[int(found.group(1))]), json.dumps(marked, indent=1))
     
-    # The two files
+    # 2 つのファイル
     target = Path(folder)
     target.mkdir(parents=True, exist_ok=True)
     (target / "model.json").write_bytes(text.encode("utf-8"))

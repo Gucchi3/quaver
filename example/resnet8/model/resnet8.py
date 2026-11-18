@@ -1,5 +1,5 @@
 # @file resnet8.py
-# @brief FP32 ResNet-8 for CIFAR-10 (MLPerf Tiny)
+# @brief CIFAR-10 用の FP32 の ResNet-8（MLPerf Tiny）
 # @author Kohei Yamaguchi, Claude
 
 from torch    import nn
@@ -13,14 +13,14 @@ from .basic_block import BasicBlock
 
 class Resnet8(nn.Module):
     '''
-    #* FP32 ResNet-8: a 3x3 stem, three blocks with 16, 32, and 64 channels, an 8x8 average pool, and a linear classifier.
-    #? main.py trains it first, and then folds the BatchNorms and loads it into each QuantResnet8 (the layer names are the same).
-    #! It takes uint8 images and only divides them by 255, like the input of QuantResnet8.
+    #* FP32 の ResNet-8。3x3 の stem、16、32、64 チャネルのブロック 3 つ、8x8 の平均の pool、線形の分類器でできている。
+    #? main.py が最初にこれを学習し、BatchNorm を畳み込んで、各 QuantResnet8 に読み込む（層の名前は同じ）。
+    #! uint8 の画像を受け取り、255 で割るだけにする（QuantResnet8 の入力と同じ）。
     '''
     
     def __init__(self) -> None:
         '''
-        #* Make the stem, the blocks, and the classifier.
+        #* stem、ブロック、分類器を作る。
         '''
         
         super().__init__()
@@ -35,7 +35,7 @@ class Resnet8(nn.Module):
     
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         '''
-        #* Return the logits of uint8 images.
+        #* uint8 の画像の logits を返す。
         '''
         
         x = torch.relu(self.stem_bn(self.stem_conv(images.float() / 255)))

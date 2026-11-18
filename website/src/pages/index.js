@@ -7,7 +7,7 @@ import ThemedImage from '@theme/ThemedImage';
 
 import styles from './index.module.css';
 
-// The three points of Quaver under the logo
+// ロゴの下に置く、Quaver の 3 つの特長
 const FEATURES = [
   {
     title: 'Same integer math as the device',

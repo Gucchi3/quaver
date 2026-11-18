@@ -4,7 +4,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
 
-// The GitHub repository. Change these two when it exists (the site URL, the base path, and the links follow them)
+// GitHub のリポジトリ。リポジトリができたらこの 2 つを変える（サイトの URL、base path、リンクはこれに従う）
 const OWNER = 'Gucchi3';
 const REPO  = 'quaver';
 
@@ -21,7 +21,7 @@ const config = {
   projectName: REPO,
   trailingSlash: false,
 
-  // Stop the build on a broken link, so CI finds it
+  // リンクが壊れていたらビルドを止め、CI で見つかるようにする
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
   markdown: {

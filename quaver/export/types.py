@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Types for the export
+# @brief 書き出しの型
 # @author Kohei Yamaguchi, Claude
 
 from typing import Literal

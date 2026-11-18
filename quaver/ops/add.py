@@ -1,5 +1,5 @@
 # @file add.py
-# @brief Residual add of two quantized tensors
+# @brief 量子化した 2 つのテンソルの残差の足し算
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -13,8 +13,8 @@ from .types      import FixedPoint
 
 def add_fake(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params: QuantParams, out_params: QuantParams, style_name: str) -> torch.Tensor:
     '''
-    #* Training mode residual add: the same integer math as add_integer, with straight-through gradients.
-    #? A learned output scale (LSQ) also gets its gradient. The math uses the type of params_math_dtype().
+    #* training mode の残差の足し算: add_integer と同じ整数の計算で、勾配はそのまま通す。
+    #? 学習する出力の scale（LSQ）にも勾配が来る。計算には params_math_dtype() の型を使う。
     '''
     
     dtype         = params_math_dtype()
@@ -25,10 +25,10 @@ def add_fake(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params: 
 
 def add_integer(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, b_params: QuantParams, out_params: QuantParams, style_name: str) -> torch.Tensor:
     '''
-    #* Integer mode residual add: rescale both inputs to the output code units without rounding, add them, and round the sum once.
-    #? On the device: (code - zero point) x M0 of each input is shifted to the larger shift n, the two are added, and the sum is rounded once with n. TFLite and CMSIS-NN also round only after the sum.
-    #? The device op torch.ops.quaver.add does this, with the static M0 and n of each input from here.
-    #! The math is always float64. The sum is exact when |sum| x 2^n < 2^53: for sums inside the output range this holds up to n = 40 (INT8), and larger sums are clipped anyway.
+    #* integer mode の残差の足し算: 両方の入力を丸めずに出力の code の単位に直し、足して、和を 1 回だけ丸める。
+    #? デバイスでは、各入力の (code - zero point) x M0 を大きい方の shift n にそろえ、2 つを足し、和を n で 1 回だけ丸める。TFLite と CMSIS-NN も、和のあとでだけ丸める。
+    #? デバイスの op torch.ops.quaver.add がこれをする。各入力の静的な M0 と n はここで求める。
+    #! 計算はいつも float64。|和| x 2^n < 2^53 なら和は正確である: 出力の範囲の中の和なら n = 40（INT8）まで成り立ち、それより大きな和はどのみち切り捨てられる。
     '''
     
     fixed = [requantize_params(params.code_scale / out_params.code_scale, style_name) for params in (a_params, b_params)]
@@ -41,8 +41,8 @@ def add_integer(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, b_p
 def add_device(q_a: torch.Tensor, a_zero_point: torch.Tensor, a_multiplier: torch.Tensor, a_shift: torch.Tensor, q_b: torch.Tensor, b_zero_point: torch.Tensor, b_multiplier: torch.Tensor, b_shift: torch.Tensor, out_zero_point: torch.Tensor,
                out_format: str, style_name: str) -> torch.Tensor:
     '''
-    #* Device op "add": (code - zero point) x M0 / 2^n of each input, added without rounding, then rounded once onto out_format, plus the output zero point.
-    #? add_integer() calls it as torch.ops.quaver.add. The rounding is the one of the style (FP outputs round half to even).
+    #* デバイスの op "add": 各入力の (code - zero point) x M0 / 2^n を丸めずに足し、out_format に 1 回だけ丸めて、出力の zero point を足す。
+    #? add_integer() が torch.ops.quaver.add として呼ぶ。丸めは style のもの（FP の出力は half to even に丸める）。
     '''
     
     style    = build_requantize(style_name)
@@ -52,7 +52,7 @@ def add_device(q_a: torch.Tensor, a_zero_point: torch.Tensor, a_multiplier: torc
 
 def add_float(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params: QuantParams, out_params: QuantParams, style_name: str) -> torch.Tensor:
     '''
-    #* Float mode (calibration): the float sum a + b, without requantizing.
+    #* float のモード（calibration）: requantize せずに、float の和 a + b を返す。
     '''
     
     return a + b
@@ -60,13 +60,13 @@ def add_float(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params:
 
 def _add_codes(q_a: torch.Tensor, a_zero: torch.Tensor, a_fixed: FixedPoint, q_b: torch.Tensor, b_zero: torch.Tensor, b_fixed: FixedPoint, out_params: QuantParams, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* Rescale each input exactly to the output code units, add the two parts, round the sum once onto the output format, and say which codes were inside the range.
-    #? add_fake() and add_device() use this, so both modes agree (always in float64, and nearly always in float32).
-    #! Only the zero point and the format of out_params are used.
+    #* 各入力を出力の code の単位に正確に直し、2 つを足して、和を出力の形式に 1 回だけ丸め、範囲の中にあった code を返す。
+    #? add_fake() と add_device() が使うので、2 つのモードは一致する（float64 ではいつも、float32 でもほとんどいつも）。
+    #! out_params は、zero point と形式だけを使う。
     '''
     
-    # Rescale each input (zero point removed) to the output code units, without rounding
+    # 各入力（zero point を引いたもの）を、丸めずに出力の code の単位に直す
     parts = [requantize_rescale(codes - zero.to(torch.int64), fixed, dtype) for codes, zero, fixed in ((q_a, a_zero, a_fixed), (q_b, b_zero, b_fixed))]
     
-    # Add the exact parts, and round the sum once onto the output format (with the rounding of the style, or half even for FP outputs)
+    # 正確な 2 つの部分を足し、和を出力の形式に 1 回だけ丸める（style の丸め。FP の出力は half even）
     return params_round(parts[0] + parts[1], out_params, a_fixed.style.round_mode)

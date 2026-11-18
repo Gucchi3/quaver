@@ -1,5 +1,5 @@
 # @file ste.py
-# @brief Straight-through gradients (STE) for rounding and quantization
+# @brief 丸めと量子化の straight-through の勾配（STE）
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -12,7 +12,7 @@ from .types  import NumberFormat, RoundMode
 
 def ste_round(x: torch.Tensor, mode: RoundMode) -> torch.Tensor:
     '''
-    #* Round x in the forward pass, and pass the gradient as it is in the backward pass.
+    #* forward では x を丸め、backward では勾配をそのまま通す。
     '''
     
     return build_round(mode)(x).detach() + (x - x.detach())
@@ -20,27 +20,27 @@ def ste_round(x: torch.Tensor, mode: RoundMode) -> torch.Tensor:
 
 def ste_quantize(x: torch.Tensor, scale: torch.Tensor, zero_point: torch.Tensor, number_format: NumberFormat, mode: RoundMode) -> torch.Tensor:
     '''
-    #* Fake-quantize x with the scale and the zero point. The gradient passes only inside the range.
-    #? Quantizer uses this for scalers that do not learn.
-    #! The scale and the zero point get no gradient.
+    #* scale と zero point で x を fake quantize する。勾配は範囲の中だけを通る。
+    #? Quantizer が、学習しない scaler のために使う。
+    #! scale と zero point には勾配が来ない。
     '''
     
-    # Round onto the grid of the format, then add the zero point
+    # 形式のグリッドに丸め、zero point を足す
     scale      = scale.detach()
     zero_point = zero_point.detach()
     scaled     = x / scale
     grid       = format_quantize(scaled, number_format, mode, zero_point)
     inside     = (scaled + zero_point >= number_format.min_value) & (scaled + zero_point <= number_format.max_value)
     
-    # Go back to real values, and pass the gradient straight through
+    # 実数の値に戻し、勾配をそのまま通す
     return ste_attach(x, (grid - zero_point) * scale, inside)
 
 
 def ste_attach(reference: torch.Tensor, value: torch.Tensor, inside: torch.Tensor | None = None) -> torch.Tensor:
     '''
-    #* Return value in the forward pass, and use the gradient of reference in the backward pass.
-    #? The fake ops use this to give gradients to the exact results of the integer math.
-    #! Where inside is False, the gradient is zero. The forward value is exactly value (no float error).
+    #* forward では value を返し、backward では reference の勾配を使う。
+    #? fake の op が、整数の計算の正確な結果に勾配を与えるのに使う。
+    #! inside が False の所では、勾配は 0 になる。forward の値は value と完全に同じ（float の誤差はない）。
     '''
     
     attached = value.detach() + (reference - reference.detach())

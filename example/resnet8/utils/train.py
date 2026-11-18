@@ -1,5 +1,5 @@
 # @file train.py
-# @brief Train and test a model on the CIFAR-10 tensors, as it is or with a CUDA graph
+# @brief CIFAR-10 のテンソルでモデルを学習しテストする（そのままか、CUDA graph を使う）
 # @author Kohei Yamaguchi, Claude
 
 from torch    import nn
@@ -19,26 +19,26 @@ WARMUP_STEPS = 3
 
 def train_fit(model: nn.Module, data: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor], epochs: int, learning_rate: float, final_rate: float, name: str, cuda_graph: bool) -> list[dict[str, float]]:
     '''
-    #* Train the model with AdamW and a cosine learning rate, and test it after each epoch. Returns one record for each epoch.
-    #? main.py uses this for FP32 and for each quantized model. With cuda_graph, a few warm-up steps run first, and then one step is captured and replayed for every batch.
-    #! The last part of the train set that does not fill a batch is left out, so every step has the same shape (a CUDA graph needs it).
+    #* AdamW と cosine の学習率でモデルを学習し、エポックごとにテストする。エポックごとに記録を 1 つ返す。
+    #? main.py が、FP32 と量子化した各モデルに使う。cuda_graph のときは、先に数 step の準備運転をしてから 1 step を記録し、どの batch でもそれを再生する。
+    #! 学習用のデータの最後の、batch に満たない部分は使わないので、どの step も同じ形になる（CUDA graph にはこれが要る）。
     '''
     
-    # Take the data apart
+    # データを分ける
     train_images, train_labels, test_images, test_labels = data
     
-    # The learning rate lives in a tensor, so a captured step reads the value the scheduler writes there
+    # 学習率はテンソルに入れておく。記録した step は、scheduler がそこに書いた値を読む
     device    = train_images.device
     optimizer = torch.optim.AdamW(model.parameters(), lr=torch.tensor(learning_rate, device=device), weight_decay=1e-4, capturable=True)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=final_rate)
     
-    # Fixed tensors for the batch and for the sums of the epoch (a captured step always uses the same memory)
+    # batch とエポックの和のための、場所の決まったテンソル（記録した step はいつも同じメモリを使う）
     images = torch.zeros((BATCH_SIZE, 3, 32, 32), dtype=torch.uint8, device=device)
     labels = torch.zeros(BATCH_SIZE             , dtype=torch.int64, device=device)
     totals = torch.zeros(2                      , device=device    )
     steps  = train_images.shape[0] // BATCH_SIZE
     
-    # CUDA graph: warm up on a side stream with random batches, and then capture one step on the fixed tensors (the capture itself runs nothing)
+    # CUDA graph: 別の stream でランダムな batch を使って準備運転をし、場所の決まったテンソルで 1 step を記録する（記録のときは何も計算しない）
     graph = None
     if cuda_graph:
         side  = torch.cuda.Stream()
@@ -54,10 +54,10 @@ def train_fit(model: nn.Module, data: tuple[torch.Tensor, torch.Tensor, torch.Te
         with torch.cuda.graph(graph):
             train_step(model, optimizer, images, labels, totals)
     
-    # Train and test for each epoch
+    # エポックごとに学習とテストをする
     records = []
     for epoch in range(1, epochs + 1):
-        # Copy each shuffled and augmented batch into the fixed tensors, then run the step or replay it
+        # シャッフルして水増しした batch を場所の決まったテンソルに写し、step を動かすか再生する
         start = time.perf_counter()
         order = torch.randperm(train_images.shape[0], device=device)
         totals.zero_()
@@ -72,11 +72,11 @@ def train_fit(model: nn.Module, data: tuple[torch.Tensor, torch.Tensor, torch.Te
                 graph.replay()
         scheduler.step()
         
-        # Read the sums (the only GPU sync of the epoch), and time the training part
+        # 和を読み（エポックの中で GPU の同期はここだけ）、学習の部分の時間を測る
         loss, correct = totals.tolist()
         seconds       = time.perf_counter() - start
         
-        # Test (timed apart from the training), and print one line
+        # テストし（時間は学習と分けて測る）、1 行表示する
         tested      = time.perf_counter()
         accuracy, _ = train_evaluate(model, test_images, test_labels)
         record      = {"epoch": epoch, "loss": loss / (steps * BATCH_SIZE), "train_accuracy": correct / (steps * BATCH_SIZE), "test_accuracy": accuracy, "seconds": seconds, "test_seconds": time.perf_counter() - tested}
@@ -87,9 +87,9 @@ def train_fit(model: nn.Module, data: tuple[torch.Tensor, torch.Tensor, torch.Te
 
 def train_step(model: nn.Module, optimizer: torch.optim.Optimizer, images: torch.Tensor, labels: torch.Tensor, totals: torch.Tensor) -> None:
     '''
-    #* Run one training step on the batch, and add its loss sum and its number of right answers to totals.
-    #? train_fit() runs it as it is, or captures it once in a CUDA graph and replays it.
-    #! It makes no GPU sync, so it can be captured. The gradients are set to None first, so a captured backward writes them in place.
+    #* batch で学習の step を 1 回動かし、loss の和と正解の数を totals に足す。
+    #? train_fit() が、そのまま動かすか、CUDA graph に 1 回記録して再生する。
+    #! GPU の同期をしないので、記録できる。勾配は先に None にするので、記録した backward はその場所に勾配を書く。
     '''
     
     logits = model(images)
@@ -104,8 +104,8 @@ def train_step(model: nn.Module, optimizer: torch.optim.Optimizer, images: torch
 
 def train_evaluate(model: nn.Module, images: torch.Tensor, labels: torch.Tensor) -> tuple[float, torch.Tensor]:
     '''
-    #* Return the accuracy and all the logits, in eval mode and without gradients.
-    #? main.py compares the logits of the training mode and of the integer mode with this. The integer mode gives codes and their parameters, which params_values() turns into the logits.
+    #* eval mode で勾配なしに、正解率とすべての logits を返す。
+    #? main.py がこれで training mode と integer mode の logits を比べる。integer mode は code とそのパラメータを返すので、params_values() で logits に変える。
     '''
     
     model.eval()

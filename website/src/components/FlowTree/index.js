@@ -1,5 +1,5 @@
-// The calls that a model makes into Quaver, in order, as an open-and-close tree, with one tab for each mode.
-// The data comes from website/scripts/flow_trace.py, which runs the model of the guides under a profiler.
+// モデルが Quaver を呼ぶ順を、開いたり閉じたりできる木で見せる。モードごとにタブを 1 つ持つ。
+// データは website/scripts/flow_trace.py から来る。これはガイドのモデルを profiler の下で動かす。
 
 import {useMemo, useState} from 'react';
 
@@ -8,7 +8,7 @@ import Link from '@docusaurus/Link';
 import flow from '@site/src/data/flow.json';
 import styles from './styles.module.css';
 
-// The API page of a call, and the heading on it: functions by their name, methods by their method name, private helpers by their class
+// 呼び出しの API のページとその見出し: 関数は名前で、メソッドはメソッドの名前で、内部用の関数はそのクラスで探す
 function apiLink(node) {
   if (node.file === 'guide') {
     return '/docs/guides/custom-layer';
@@ -55,7 +55,7 @@ function Call({node, depth, open, toggle, path}) {
   );
 }
 
-// Every path in a tree, down to a depth
+// 木のすべてのパスを、ある深さまで集める
 function paths(nodes, prefix, depth) {
   return nodes.flatMap((node, index) => {
     const path = `${prefix}${index}`;
@@ -67,7 +67,7 @@ export default function FlowTree() {
   const [modeIndex, setModeIndex] = useState(2);
   const mode = flow.modes[modeIndex];
 
-  // Open the model and its layers at the start
+  // 初めは、モデルとその層を開いておく
   const start = useMemo(() => new Set(paths(mode.calls, '', 2)), [mode]);
   const [open, setOpen] = useState(start);
   const toggle = (path) => setOpen((now) => {

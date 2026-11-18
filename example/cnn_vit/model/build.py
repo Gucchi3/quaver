@@ -1,22 +1,22 @@
 # @file build.py
-# @brief Quantized CNN + ViT models, chosen by name
+# @brief 名前で選ぶ、量子化した CNN + ViT のモデル
 # @author Kohei Yamaguchi, Claude
 
 ##########################################################
 '''
-Add a model
-1. Write a CnnVitSetting: the formats of the weights, of the activations after ReLU, of the inputs of the attention and the MLP, of SimA, and of the projection input.
-2. Add "name: setting" to MODEL_REGISTRY.
-3. Run main.py --models name.
+モデルを足すとき
+1. CnnVitSetting を書く: 重みの形式、ReLU のあとの活性化の形式、attention と MLP の入力の形式、SimA の形式、projection の入力の形式。
+2. MODEL_REGISTRY に "名前: setting" を足す。
+3. main.py --models 名前 で動かす。
 '''
 ##########################################################
 
 from .quant_cnn_vit import QuantCnnVit
 from .types         import CnnVitSetting
 
-# The first conv and the classifier have INT8 weights, and the residual stream is INT8. 4-bit models put everything else in 4 bits: they requantize the residual to 4 bits
-# at the inputs of the attention and the MLP. Symmetric models use unsigned formats after ReLU, and asymmetric models signed formats with zero points (INT only).
-# SimA keeps its own symmetric quantizers in every model, and its projection input is signed (no ReLU6 after attention x V, like the paper).
+# 最初の conv と分類器の重みは INT8 で、残差のストリームも INT8 にする。4 bit のモデルはそれ以外をすべて 4 bit にする。attention と MLP の入力で、残差を 4 bit に
+# requantize する。対称のモデルは ReLU のあとに符号なしの形式を使い、非対称のモデルは zero point のある符号付きの形式を使う（INT だけ）。
+# SimA はどのモデルでも自分の対称の量子化器を持ち、projection の入力は符号付きにする（論文と同じく、attention x V のあとに ReLU6 を置かない）。
 MODEL_REGISTRY: dict[str, CnnVitSetting] = {
     "int8"     : CnnVitSetting(weight_format="int8", act_format="uint8", branch_format=None  , sima_format="int8", project_format="int8", weight_symmetric=True , act_symmetric=True ),
     "int8_asym": CnnVitSetting(weight_format="int8", act_format="int8" , branch_format=None  , sima_format="int8", project_format="int8", weight_symmetric=False, act_symmetric=False),
@@ -29,8 +29,8 @@ MODEL_REGISTRY: dict[str, CnnVitSetting] = {
 
 def build_model(name: str) -> QuantCnnVit:
     '''
-    #* Return the quantized CNN + ViT of the name in MODEL_REGISTRY.
-    #? main.py makes each model with this, and then loads the folded FP32 weights into it.
+    #* MODEL_REGISTRY にある名前の、量子化した CNN + ViT を返す。
+    #? main.py がこれで各モデルを作り、そこに畳み込んだ FP32 の重みを読み込む。
     '''
     
     if name not in MODEL_REGISTRY:

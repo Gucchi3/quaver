@@ -1,5 +1,5 @@
 # @file calibrate.py
-# @brief Measure the ranges of the activations before training, or for PTQ
+# @brief 学習の前に、または PTQ のために、活性化の範囲を測る
 # @author Kohei Yamaguchi, Claude
 
 from collections.abc import Callable, Iterable
@@ -14,19 +14,19 @@ from .switch  import switch_quantizers
 
 def calibrate_model(model: nn.Module, batches: Iterable, forward: Callable | None = None) -> None:
     '''
-    #* Run batches through the model in float (quantization off), so that the scalers learn the ranges of the float values, like the observers of PyTorch.
-    #? Use it for PTQ, or before QAT to start from good scales. LSQ steps start from the first batch. Layers with a float_mode flag compute in float, so no value is rounded or clipped.
-    #! Pass forward(model, batch) when a batch is not one input tensor.
+    #* モデルに float で（量子化を止めて）batch を通し、scaler に float の値の範囲を覚えさせる（PyTorch の observer と同じ）。
+    #? PTQ に使うか、QAT の前によい scale から始めるために使う。LSQ の step は最初の batch から始まる。float_mode のフラグを持つ層は float で計算するので、どの値も丸めも切り捨てもしない。
+    #! batch が入力のテンソル 1 つでないときは、forward(model, batch) を渡す。
     '''
     
-    # Measure in eval mode, but let the scalers update (switch_quantizers() also puts the layers into the float mode)
+    # eval mode で測るが、scaler は更新させる（switch_quantizers() は層を float のモードにもする）
     was_training = model.training
     model.eval()
     for _, scaler in collect_scalers(model, nn.Module):
         scaler.train()
     switch_quantizers(model, False)
     
-    # Run the batches without gradients
+    # 勾配なしで batch を通す
     with torch.no_grad():
         for batch in batches:
             if forward is None:
@@ -34,7 +34,7 @@ def calibrate_model(model: nn.Module, batches: Iterable, forward: Callable | Non
             else:
                 forward(model, batch)
     
-    # Put everything back
+    # すべてを元に戻す
     switch_quantizers(model, True)
     model.train(was_training)
     

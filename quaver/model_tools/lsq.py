@@ -1,5 +1,5 @@
 # @file lsq.py
-# @brief LSQ helpers for the optimizer
+# @brief optimizer のための LSQ の道具
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -13,7 +13,7 @@ from .collect import collect_scalers
 
 def lsq_parameters(model: nn.Module) -> list[nn.Parameter]:
     '''
-    #* Collect the learned steps and zero points of every LsqScaler.
+    #* すべての LsqScaler の、学習した step と zero point を集める。
     '''
     
     return [parameter for _, scaler in collect_scalers(model, LsqScaler) for parameter in scaler.parameters()]
@@ -21,7 +21,7 @@ def lsq_parameters(model: nn.Module) -> list[nn.Parameter]:
 
 def lsq_param_groups(model: nn.Module, weight_decay: float) -> list[dict]:
     '''
-    #* Make the groups for the optimizer: every other parameter with weight_decay, and the LSQ steps and zero points with no weight decay.
+    #* optimizer のグループを作る: ほかのパラメータはすべて weight_decay 付き、LSQ の step と zero point は weight decay なしにする。
     '''
     
     learned = lsq_parameters(model)
@@ -32,8 +32,8 @@ def lsq_param_groups(model: nn.Module, weight_decay: float) -> list[dict]:
 
 def lsq_clamp_steps(model: nn.Module) -> None:
     '''
-    #* Pull every LSQ step back above its lower limit. Call it after optimizer.step().
-    #? Adam moves a step by about the learning rate, so one update can make a small step negative.
+    #* LSQ の step をすべて、下限より上に戻す。optimizer.step() のあとで呼ぶ。
+    #? Adam は step を学習率くらい動かすので、1 回の更新で小さな step が負になることがある。
     '''
     
     with torch.no_grad():

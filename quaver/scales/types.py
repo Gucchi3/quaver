@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Types for the scales
+# @brief scale の型
 # @author Kohei Yamaguchi, Claude
 
 from dataclasses import dataclass
@@ -18,9 +18,9 @@ MathDtype       = Literal["float32", "float64"]
 @dataclass(frozen=True)
 class Granularity:
     '''
-    #* Say how many scales a tensor gets: one in total, one for each channel, or one for each block.
-    #? kind is "tensor", "channel" (one for each index of axis), or "block" (block_size values along axis).
-    #! One block over the whole axis gives one scale for each token.
+    #* テンソルが持つ scale の数を表す: 全部で 1 つ、チャネルごとに 1 つ、ブロックごとに 1 つ。
+    #? kind は "tensor"、"channel"（axis の番号ごとに 1 つ）、"block"（axis に沿った block_size 個の値）。
+    #! 軸全体を 1 つのブロックにすると、トークンごとに scale を 1 つ持つ。
     '''
     
     kind      : GranularityKind = "tensor"
@@ -31,9 +31,9 @@ class Granularity:
 @dataclass(frozen=True)
 class BlockScale:
     '''
-    #* Hold the block scales of a block-scaled tensor (NVFP4 and the like) as integers, for the exact integer math.
-    #? codes: the code of the block scale of each value, in scale_format (real block scale = code x step_min of scale_format). tensor_scale: the second-level scale of the tensor.
-    #! The real value of an element = element code x step_min of its format x block scale x tensor_scale.
+    #* ブロックごとの scale のテンソル（NVFP4 など）のブロックの scale を、正確な整数の計算のために整数で持つ。
+    #? codes: 各値のブロックの scale の、scale_format での code（実数のブロックの scale = code x scale_format の step_min）。tensor_scale: テンソルの 2 段目の scale。
+    #! 要素の実数の値 = 要素の code x その形式の step_min x ブロックの scale x tensor_scale。
     '''
     
     codes       : torch.Tensor
@@ -44,10 +44,10 @@ class BlockScale:
 @dataclass(frozen=True)
 class QuantParams:
     '''
-    #* Hold the scale, the zero point, and the number format of a quantized tensor.
-    #? Real value = (code - zero_point) x code_scale, and code_scale = scale x step_min of the format.
-    #! block is set for block-scaled tensors: then scale is block scale x tensor scale for each value, and block keeps its integer parts.
-    #! peak is set for the outputs of NEQ: the integer p that the device keeps (scale = p / (2^NORM_BITS x largest value of the format)).
+    #* 量子化したテンソルの scale、zero point、数値形式を持つ。
+    #? 実数の値 = (code - zero_point) x code_scale、code_scale = scale x 形式の step_min。
+    #! ブロックごとの scale のテンソルでは block を決める: そのとき scale は各値のブロックの scale x テンソルの scale で、block はその整数の部分を持つ。
+    #! NEQ の出力では peak を決める: デバイスが持つ整数 p（scale = p / (2^NORM_BITS x 形式の一番大きな値)）。
     '''
     
     scale        : torch.Tensor
@@ -59,7 +59,7 @@ class QuantParams:
     @property
     def code_scale(self) -> torch.Tensor:
         '''
-        #* Return the real value of one step of the integer code.
+        #* 整数の code の 1 刻みの実数の値を返す。
         '''
         
         return self.scale * self.number_format.step_min

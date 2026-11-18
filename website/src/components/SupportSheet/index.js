@@ -1,12 +1,12 @@
-// The sheet of what Quaver supports, on the "What is Quaver?" page.
-// Each item links to its Learn page, with the quiet dotted line of all Learn links.
-// Each number format shows its bits as a row of small squares (small square cells): sign, exponent, mantissa, or integer bits.
+// 「What is Quaver?」のページにある、Quaver ができることの一覧表。
+// 各項目は Learn のページにリンクし、ほかの Learn へのリンクと同じ控えめな点線を付ける。
+// 各数値形式は、ビットを小さな四角の列で見せる（小さな四角のセル）: 符号、指数、仮数、整数のビット。
 
 import Link from '@docusaurus/Link';
 
 import styles from './styles.module.css';
 
-// Bits of each format, from the top bit: s = sign, e = exponent, m = mantissa, i = integer bit
+// 各形式のビットを、一番上のビットから: s = 符号、e = 指数、m = 仮数、i = 整数のビット
 const VALUE_FORMATS = [
   {name: 'int8', bits: 'siiiiiii'},
   {name: 'int4', bits: 'siii'},
@@ -26,7 +26,7 @@ const SCALE_FORMATS = [
 
 const BIT_NAMES = {s: 'sign', e: 'exponent', m: 'mantissa', i: 'integer'};
 
-// The Learn page of each item
+// 各項目の Learn のページ
 const LEARN = {
   'Formats'                              : 'int-fp',
   'Scales'                               : 'scale-zero-point',
@@ -69,7 +69,7 @@ function Item({name, children}) {
   return <Link to={`/docs/learn/${page}`}>{children}</Link>;
 }
 
-// The other rows: a group name, then rows of a label and its items
+// ほかの行: グループの名前と、ラベルとその項目の行
 const GROUPS = [
   {
     name: 'Scales',

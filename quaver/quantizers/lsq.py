@@ -1,5 +1,5 @@
 # @file lsq.py
-# @brief LSQ fake quantization and its gradient scale
+# @brief LSQ の fake quantization と、その勾配の scale
 # @author Kohei Yamaguchi, Claude
 
 import math
@@ -11,16 +11,16 @@ from ..formats import NumberFormat, RoundMode, format_quantize
 
 def lsq_quantize(x: torch.Tensor, step: torch.Tensor, zero_point: torch.Tensor, number_format: NumberFormat, mode: RoundMode, grad_scale: float) -> torch.Tensor:
     '''
-    #* Fake-quantize x with a learned step (LSQ) and a learned zero point (LSQ+).
-    #? Autograd gives the LSQ gradients: d/dstep = round(v) - v inside the range, and the end of the range outside.
-    #! The codes are rounded before the zero point is added, like encode(). Adding the zero point first in float32 could move a value next to a tie onto it.
+    #* 学習する step（LSQ）と学習する zero point（LSQ+）で x を fake quantize する。
+    #? autograd が LSQ の勾配を与える: 範囲の中では d/dstep = round(v) - v、範囲の外では範囲の端。
+    #! encode() と同じく、code は zero point を足す前に丸める。float32 で先に zero point を足すと、ちょうど半分の隣の値がちょうど半分に動くことがある。
     '''
     
-    # Divide by the step, and put the LSQ gradient scale on the step
+    # step で割り、LSQ の勾配の scale を step にかける
     step   = lsq_scale_gradient(step, grad_scale)
     scaled = x / step
     
-    # Round (then add the zero point and clip) for the value, and take the gradients from the clipped value with a straight-through path
+    # 値は丸めて（次に zero point を足し、切り詰めて）求め、勾配は切り詰めた値から straight-through の道で求める
     clipped = (scaled + zero_point).clamp(number_format.min_value, number_format.max_value)
     grid    = format_quantize(scaled, number_format, mode, zero_point).detach() + (clipped - clipped.detach())
     return (grid - zero_point) * step
@@ -28,8 +28,8 @@ def lsq_quantize(x: torch.Tensor, step: torch.Tensor, zero_point: torch.Tensor, 
 
 def lsq_grad_scale(count: int, number_format: NumberFormat) -> float:
     '''
-    #* Return the LSQ gradient scale 1 / sqrt(N x Qp).
-    #? N is the number of values that share one step. Qp is the largest value of the format.
+    #* LSQ の勾配の scale 1 / sqrt(N x Qp) を返す。
+    #? N は 1 つの step を共有する値の数。Qp は形式の一番大きな値。
     '''
     
     return 1.0 / math.sqrt(max(count, 1) * number_format.max_value)
@@ -37,7 +37,7 @@ def lsq_grad_scale(count: int, number_format: NumberFormat) -> float:
 
 def lsq_scale_gradient(x: torch.Tensor, factor: float) -> torch.Tensor:
     '''
-    #* Keep the value of x exactly, and multiply only its gradient by factor.
+    #* x の値はそのまま保ち、勾配だけに factor をかける。
     '''
     
     scaled = x * factor

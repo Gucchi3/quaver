@@ -1,16 +1,16 @@
-/* The styles of KaTeX for the math (the same version as rehype-katex uses) */
+/* 数式のための KaTeX の CSS（rehype-katex が使うのと同じ版） */
 @import 'katex/dist/katex.min.css';
 
-/* Zen Antique for the headings. Only the Latin letters, since the headings are English */
+/* 見出しは Zen Antique。見出しは英語なので、ラテン文字だけを読み込む */
 @import '@fontsource/zen-antique/latin-400.css';
 
 /*
- * The colors come from Japanese things: paper, ink, a red seal, and a wooden box:
- * kinari (raw silk) for the paper, sumi for the ink, shu for the red of the seal, hinoki for the wood of the box, and ai (indigo) for notes.
- * Shu is only for things you can press (links and buttons). The wood color is only for lines and table heads.
+ * 色は日本のものから取る: 紙、墨、朱の印、木箱。
+ * 紙は生成り（生糸）、文字は墨、印の赤は朱、箱の木は檜、注意書きは藍。
+ * 朱は押せるもの（リンクとボタン）だけに使う。木の色は線と表の見出しだけに使う。
  */
 :root {
-  /* Shu: links and buttons (contrast 5.3 on the paper) */
+  /* 朱: リンクとボタン（紙の上でのコントラスト 5.3） */
   --ifm-color-primary: #b5442a;
   --ifm-color-primary-dark: #a33d26;
   --ifm-color-primary-darker: #9a3a24;
@@ -19,14 +19,14 @@
   --ifm-color-primary-lighter: #cf4f31;
   --ifm-color-primary-lightest: #d6664c;
 
-  /* Kinari paper and sumi ink */
+  /* 生成りの紙と墨の文字 */
   --ifm-background-color: #fbfaf5;
   --ifm-background-surface-color: #fbfaf5;
   --ifm-font-color-base: #2f2219;
   --ifm-font-color-secondary: #6b5a4c;
   --ifm-heading-color: #3b2414;
 
-  /* Warm steps from the paper to the ink, for borders, hovers, muted text, and the text on buttons */
+  /* 紙から墨への暖かい色の段階。枠、マウスを乗せたとき、控えめな文字、ボタンの文字に使う */
   --ifm-color-emphasis-0: #fbfaf5;
   --ifm-color-emphasis-100: #f5efe4;
   --ifm-color-emphasis-200: #ece3d3;
@@ -39,7 +39,7 @@
   --ifm-color-emphasis-900: #2a211b;
   --ifm-color-emphasis-1000: #1d1612;
 
-  /* Hinoki wood: the lines and the table heads, like the rim of a wooden box */
+  /* 檜の木: 木箱の縁のような、線と表の見出し */
   --quaver-wood: #dccbad;
   --ifm-toc-border-color: var(--quaver-wood);
   --ifm-hr-border-color: var(--quaver-wood);
@@ -49,25 +49,25 @@
   --ifm-code-background: #f3ecdf;
   --quaver-code-block: #f5efe4;
 
-  /* Ai: the color of the info notes */
+  /* 藍: 情報の注意書きの色 */
   --ifm-color-info: #165e83;
   --ifm-color-info-dark: #145576;
   --ifm-color-info-contrast-background: #e8eff3;
   --ifm-color-info-contrast-foreground: #0f3f58;
 
-  /* Type: Zen Antique for the headings, the system font for the text */
+  /* 書体: 見出しは Zen Antique、本文はシステムの書体 */
   --ifm-heading-font-family: 'Zen Antique', 'Yu Mincho', 'Hiragino Mincho ProN', serif;
   --ifm-heading-font-weight: 400;
   --ifm-code-font-size: 95%;
 
-  /* Crisp edges like a wooden box, and no shadows */
+  /* 木箱のようなはっきりした角で、影は付けない */
   --ifm-global-radius: 3px;
   --ifm-navbar-shadow: none;
   --docusaurus-highlighted-code-line-bg: rgba(59, 36, 20, 0.08);
 }
 
 [data-theme='dark'] {
-  /* Shu, made lighter so that it reads on the ink (contrast 5.5) */
+  /* 墨の上で読めるように明るくした朱（コントラスト 5.5） */
   --ifm-color-primary: #dd7350;
   --ifm-color-primary-dark: #d85f37;
   --ifm-color-primary-darker: #d6552a;
@@ -76,7 +76,7 @@
   --ifm-color-primary-lighter: #e49176;
   --ifm-color-primary-lightest: #ecaf9c;
 
-  /* Sumi paper and kinari letters (the colors of the dark logo) */
+  /* 墨の紙と生成りの文字（暗いロゴの色） */
   --ifm-background-color: #1e1915;
   --ifm-background-surface-color: #262019;
   --ifm-font-color-base: #ecdfcb;
@@ -109,22 +109,22 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
-/* The navbar sits on the paper, with one wood line under it */
+/* ナビゲーションバーは紙の上に置き、下に木の色の線を 1 本引く */
 .navbar {
   border-bottom: 1px solid var(--quaver-wood);
 }
 
-/* The logo in the navbar */
+/* ナビゲーションバーのロゴ */
 .navbar__logo {
   height: 2.2rem;
 }
 
-/* The second button is drawn in ink: an ink outline, filled with ink on hover */
+/* 2 つ目のボタンは墨で描く: 墨の輪郭で、マウスを乗せると墨で塗る */
 .button--secondary.button--outline {
   --ifm-button-border-color: var(--ifm-heading-color);
 }
 
-/* Code blocks on warm paper instead of the gray of the code theme */
+/* コードのブロックは、コードのテーマの灰色の代わりに暖かい紙の色にする */
 .theme-code-block {
   --prism-background-color: var(--quaver-code-block) !important;
 }
@@ -133,7 +133,7 @@
   background-color: var(--quaver-code-block) !important;
 }
 
-/* The footer is a block of sumi ink */
+/* フッターは墨の塊にする */
 .footer--dark {
   --ifm-footer-background-color: #2a211b;
   --ifm-footer-color: #e7d9c3;
@@ -147,8 +147,8 @@
 }
 
 /*
- * Links from the other pages to Learn are quiet, like a note on a word: the color of the text, with a dotted wood line under it.
- * They turn shu on hover. On the Learn pages themselves, the links between Learn pages stay normal.
+ * ほかのページから Learn へのリンクは、言葉への注釈のように控えめにする: 文字の色で、下に木の色の点線を引く。
+ * マウスを乗せると朱になる。Learn のページどうしのリンクは、ふつうのリンクのままにする。
  */
 html:not([class*='docs-doc-id-learn/']) .theme-doc-markdown a[href*='/docs/learn/'] {
   color: inherit;
@@ -162,7 +162,7 @@ html:not([class*='docs-doc-id-learn/']) .theme-doc-markdown a[href*='/docs/learn
   text-decoration: underline solid currentColor;
 }
 
-/* Long math scrolls inside itself on a narrow screen */
+/* 長い数式は、狭い画面では自分の中でスクロールする */
 .katex-display {
   overflow-x: auto;
   overflow-y: hidden;

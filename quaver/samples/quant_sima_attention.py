@@ -1,5 +1,5 @@
 # @file quant_sima_attention.py
-# @brief Sample quantized SimA attention (L1 normalization instead of softmax), with integer math only
+# @brief 整数の計算だけで動く、量子化した SimA の attention（softmax の代わりに L1 正規化）のサンプル
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -16,10 +16,10 @@ from .quant_conv2d import QuantConv2d
 
 class QuantSimaAttention(nn.Module):
     '''
-    #* SimA attention without softmax: Q and K are L1-normalized for each token and quantized with NEQ (Kaneko and Meng), and then (Q K^T) V is computed, all with integer math on the device.
-    #? 1x1 convs for Q, K, V, and the projection, on (B, C, H, W), like the SimA ViT of E_AI_deit (with its 1 / sqrt(key_dim) in the scale).
-    #? By default there is no activation before the projection, like the paper. activation="relu6" adds the ReLU6 of E_AI_deit.
-    #! NEQ is dynamic (by default one scale for each sample and head, Algorithm 2 of the paper), and the device finds the M0 and n of the attention map with integers.
+    #* softmax のない SimA の attention: Q と K をトークンごとに L1 正規化して NEQ（Kaneko と Meng）で量子化し、(Q K^T) V を求める。デバイスではすべて整数で計算する。
+    #? E_AI_deit の SimA の ViT と同じく、(B, C, H, W) の上で Q、K、V、projection に 1x1 conv を使う（その 1 / sqrt(key_dim) は scale に入れる）。
+    #? 論文と同じく、標準では projection の前に活性化はない。activation="relu6" で E_AI_deit の ReLU6 を足す。
+    #! NEQ は動的（標準ではサンプルと head ごとに scale を 1 つ。論文の Algorithm 2）で、デバイスは attention map の M0 と n を整数で求める。
     '''
     
     activation: ActivationKind
@@ -29,21 +29,21 @@ class QuantSimaAttention(nn.Module):
     def __init__(self, channels: int, heads: int, key_dim: int, value_dim: int, weight_format: str = "int4", act_format: str = "int4", project_format: str = "int4", activation: ActivationKind = "none", neq_scope: NeqScope = "tensor",
                  output_format: str | None = None, output_scaler: Scaler | None = None, style: str = "mul16_shift", round_mode: RoundMode | None = None) -> None:
         '''
-        #* Make the four 1x1 convs, and the quantizers of the attention map and of the projection input.
-        #? act_format is for Q, K, the attention map, and V. activation ("none", "relu", or "relu6") runs on attention x V. neq_scope: "tensor" (the paper's setting) or "token".
-        #? output_format requantizes the projection to it (fused into the kernel on the device), with output_scaler when the scale is shared with the residual (scale sharing). None returns the INT32 accumulator.
-        #! Use a signed project_format without an activation, and an unsigned one after ReLU or ReLU6 (an unsigned format cuts the negative values, like a ReLU).
-        #! style needs a multiplier and a shift (mul16_shift or shift_only), and act_format needs codes of 8 bits or less, so the integer math stays exact.
+        #* 4 つの 1x1 conv と、attention map と projection の入力の量子化器を作る。
+        #? act_format は Q、K、attention map、V の形式。activation（"none"、"relu"、"relu6"）は attention x V にかける。neq_scope: "tensor"（論文の設定）か "token"。
+        #? output_format があるときは、projection をそれに requantize する（デバイスではカーネルにまとめる）。scale を残差と共有するときは output_scaler を使う（scale の共有）。None のときは INT32 の累積を返す。
+        #! 活性化がないときは符号付きの project_format を、ReLU か ReLU6 のあとでは符号なしの形式を使う（符号なしの形式は、ReLU と同じく負の値を切る）。
+        #! 整数の計算が正確なままになるように、style には multiplier と shift（mul16_shift か shift_only）が、act_format には 8 bit 以下の code が要る。
         '''
         
-        # Check here at the entry: the dynamic scales need M0 and n, and the products must stay exact
+        # この入口で確かめる: 動的な scale には M0 と n が要り、積は正確なままでなければならない
         number_format = build_format(act_format)
         if build_requantize(style).multiplier_max == 0:
             raise ValueError(f"SimA needs a style with a multiplier and a shift (mul16_shift or shift_only), not {style!r}: its scales change while running.")
         if number_format.max_value / number_format.step_min > 255:
             raise ValueError(f"act_format must have codes of 8 bits or less (INT8, INT4, FP4, ...), not {act_format!r}.")
         
-        # Settings
+        # 設定
         super().__init__()
         self.heads         = heads
         self.key_dim       = key_dim
@@ -57,13 +57,13 @@ class QuantSimaAttention(nn.Module):
         self.integer_mode  = False
         self.float_mode    = False
         
-        # 1x1 convs for Q, K, V, and the projection
+        # Q、K、V、projection の 1x1 conv
         self.query   = self._sima_conv(channels         , heads * key_dim  , None         , None         )
         self.key     = self._sima_conv(channels         , heads * key_dim  , None         , None         )
         self.value   = self._sima_conv(channels         , heads * value_dim, act_format   , None         )
         self.project = self._sima_conv(heads * value_dim, channels         , output_format, output_scaler)
         
-        # The scales of the attention map and of the projection input follow the maximum (axis 0 is the batch)
+        # attention map と projection の入力の scale は最大に従う（軸 0 は batch）
         self.attention_quantizer = Quantizer(self.act_format             , RangeScaler(), Granularity(), round_mode, batch_axis=0)
         self.project_quantizer   = Quantizer(build_format(project_format), RangeScaler(), Granularity(), round_mode, batch_axis=0)
         
@@ -71,29 +71,29 @@ class QuantSimaAttention(nn.Module):
     
     def forward(self, x: torch.Tensor, x_params: QuantParams) -> tuple[torch.Tensor, QuantParams]:
         '''
-        #* Run SimA attention in the current mode (fake values, integer codes, or float values).
-        #? Returns the output of the projection and its parameters, ready for a residual add: the INT32 accumulator, or output_format codes.
-        #! x_params must have one scale for the whole tensor.
+        #* 今のモード（fake の値、整数の code、float の値）で SimA の attention を動かす。
+        #? projection の出力とそのパラメータを返す。そのまま残差の足し算に使える: INT32 の累積か、output_format の code。
+        #! x_params の scale は、テンソル全体で 1 つでなければならない。
         '''
         
-        # Q and K: 1x1 conv to the INT32 accumulator, cut into heads, and NEQ (one scale for each sample and head, or for each token)
+        # Q と K: INT32 の累積に出す 1x1 conv、head への分割、NEQ（サンプルと head ごと、またはトークンごとに scale を 1 つ）
         ops                     = mode_ops(self.integer_mode, self.float_mode)
         batch, _, height, width = x.shape
         query, query_params     = self._sima_tokens(self.query, x, x_params, ops)
         key, key_params         = self._sima_tokens(self.key  , x, x_params, ops)
         
-        # Attention map: exact Q K^T, requantized with the integer maxima of NEQ, and 1 / sqrt(key_dim) in the static part of the multiplier
+        # attention map: 正確な Q K^T を NEQ の整数の最大で requantize する。1 / sqrt(key_dim) は multiplier の静的な部分に入れる
         factor               = self.key_dim**-0.5
         key_t_params         = QuantParams(key_params.scale.transpose(-1, -2), key_params.zero_point.transpose(-1, -2), key_params.number_format, peak=None if key_params.peak is None else key_params.peak.transpose(-1, -2))
         scores, score_params = ops.matmul(query, query_params, key.transpose(-1, -2), key_t_params)
         attention_params     = self.attention_quantizer.params(scores) if self.integer_mode else self.attention_quantizer.measure(scores * factor)
         attention            = ops.normalize_l1_scores(scores, score_params, query_params, key_t_params, attention_params, factor, self.style)
         
-        # Values: 1x1 conv to the activation format, cut into heads
+        # value: 活性化の形式に出す 1x1 conv と、head への分割
         value, value_params = self.value(x, x_params)
         value               = value.reshape(batch, self.heads, self.value_dim, -1).transpose(-1, -2)
         
-        # Output: exact attention x V, the activation on the accumulator (none by default), then requantize to the projection input (static M0 and n)
+        # 出力: 正確な attention x V、累積への活性化（標準ではなし）、そして projection の入力への requantize（静的な M0 と n）
         output, output_params = ops.matmul(attention, attention_params, value, value_params)
         output                = ops.activation(output, output_params, self.activation)
         project_params        = self.project_quantizer.params(output) if self.integer_mode else self.project_quantizer.measure(output)
@@ -103,16 +103,16 @@ class QuantSimaAttention(nn.Module):
     
     def _sima_conv(self, in_channels: int, out_channels: int, output_format: str | None, output_scaler: Scaler | None) -> QuantConv2d:
         '''
-        #* Make one 1x1 conv with the shared weight format, style, and rounding.
-        #? __init__() uses this for the four convs.
+        #* 共通の重みの形式、style、丸めで、1x1 conv を 1 つ作る。
+        #? __init__() が 4 つの conv に使う。
         '''
         
         return QuantConv2d(in_channels, out_channels, 1, weight_format=self.weight_format, output_format=output_format, style=self.style, round_mode=self.round_mode, output_scaler=output_scaler)
     
     def _sima_tokens(self, conv: QuantConv2d, x: torch.Tensor, x_params: QuantParams, ops: OpSet) -> tuple[torch.Tensor, QuantParams]:
         '''
-        #* Run the Q or K conv to its accumulator, cut it into heads as (B, heads, tokens, key_dim), and run NEQ on it.
-        #? forward() uses this for Q and K. The accumulator has one scale for each channel, so the scales are cut into heads in the same way.
+        #* Q か K の conv を累積まで動かし、head に分けて (B, heads, tokens, key_dim) にし、NEQ をかける。
+        #? forward() が Q と K に使う。累積はチャネルごとに scale を 1 つ持つので、scale も同じように head に分ける。
         '''
         
         acc, acc_params  = conv(x, x_params)

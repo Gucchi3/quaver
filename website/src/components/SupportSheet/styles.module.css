@@ -1,7 +1,7 @@
 /*
- * A spec sheet in three groups, split by wood lines like the boards of a wooden box.
- * The group name sits on the left in Zen Antique. Each row has a quiet label and its items.
- * The bits of each format are small squares: ink for the sign, wood for the exponent, light wood for the mantissa, and an empty box for integer bits.
+ * 3 つのグループに分けた仕様の表。木箱の板のように、木の色の線で区切る。
+ * グループの名前は左に Zen Antique で置く。各行は控えめなラベルとその項目を持つ。
+ * 各形式のビットは小さな四角: 符号は墨、指数は木の色、仮数は薄い木の色、整数のビットは空の四角。
  */
 .sheet {
   --bit-size: 0.7rem;
@@ -54,7 +54,7 @@
   margin: 0;
 }
 
-/* Plain items: words with a thin wood frame */
+/* ただの項目: 細い木の色の枠で囲んだ言葉 */
 .tags,
 .formats {
   display: flex;
@@ -65,7 +65,7 @@
   list-style: none;
 }
 
-/* The docs give each list item after the first a top margin; the items here line up without it */
+/* ドキュメントの CSS は、リストの 2 つ目からの項目に上の余白を付ける。ここの項目は余白なしで並べる */
 .sheet .tags li,
 .sheet .formats li {
   margin: 0;
@@ -79,7 +79,7 @@
   line-height: 1.5;
 }
 
-/* A whole frame is the link when the item has a Learn page, and the frame turns shu on hover */
+/* 項目に Learn のページがあるときは枠全体をリンクにし、マウスを乗せると枠が朱になる */
 .tags li a {
   display: block;
   margin: -0.1rem -0.55rem;
@@ -90,7 +90,7 @@
   border-color: var(--ifm-color-primary);
 }
 
-/* A format: its name on top, its bits under it */
+/* 形式: 上に名前、その下にビット */
 .formats {
   gap: 0.8rem 1.1rem;
 }
@@ -168,7 +168,7 @@
   gap: 0.35rem;
 }
 
-/* On a narrow screen, the names and labels go above their items */
+/* 狭い画面では、名前とラベルを項目の上に置く */
 @media (max-width: 720px) {
   .group,
   .row {
