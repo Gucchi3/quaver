@@ -1,5 +1,5 @@
 # @file fp.py
-# @brief Small FP formats (FP4, UFP4, and UE4M3 for block scales)
+# @brief 小さな FP の形式（FP4、UFP4、ブロックの scale の UE4M3）
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -10,17 +10,17 @@ from .types import NumberFormat
 
 def fp_format(exponent_bits: int, mantissa_bits: int, signed: bool, nan_top: bool, name: str = "") -> NumberFormat:
     '''
-    #* Make a small FP format from its exponent bits and mantissa bits.
-    #? Unsigned formats (UFP) use the sign bit as one more mantissa bit: UFP4 is E2M2. name="" names the format by its kind and bits (fp4, ufp4).
-    #! nan_top=True keeps the top code for NaN (like E4M3), so the largest value is one step lower.
+    #* 指数のビット数と仮数のビット数から、小さな FP の形式を作る。
+    #? 符号なしの形式（UFP）は、符号のビットを仮数のビットに 1 つ足して使う: UFP4 は E2M2。name="" のときは、種類とビット数で名前を付ける（fp4、ufp4）。
+    #! nan_top=True のときは一番上の code を NaN に取っておく（E4M3 と同じ）ので、一番大きな値は 1 刻み下になる。
     '''
     
-    # Find the range of the exponent
+    # 指数の範囲を求める
     bias     = 2 ** (exponent_bits - 1) - 1
     low_exp  = 1 - bias
     high_exp = 2**exponent_bits - 1 - bias
     
-    # Find the largest value, the number of bits, and the name
+    # 一番大きな値、ビット数、名前を求める
     top_mantissa = 2**mantissa_bits - (2 if nan_top else 1)
     max_value    = 2.0**high_exp * (1 + top_mantissa / 2**mantissa_bits)
     bits         = exponent_bits + mantissa_bits + (1 if signed else 0)
@@ -31,9 +31,9 @@ def fp_format(exponent_bits: int, mantissa_bits: int, signed: bool, nan_top: boo
 
 def fp_step(x: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Return the grid step of the FP format at each value of x.
-    #? Values in [2^e, 2^(e+1)) have the step 2^(e - mantissa_bits). Very small values (subnormals) use the step of the lowest exponent.
-    #! This is exact, because frexp and ldexp only change the exponent.
+    #* x の各値での、FP の形式のグリッドの刻みを返す。
+    #? [2^e, 2^(e+1)) の値の刻みは 2^(e - mantissa_bits)。とても小さな値（subnormal）は、一番低い指数の刻みを使う。
+    #! frexp と ldexp は指数しか変えないので、これは正確である。
     '''
     
     exponent = _fp_exponent(x, number_format)
@@ -42,22 +42,22 @@ def fp_step(x: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
 
 def fp_encode(values: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn values on the FP grid into bit codes (sign, exponent, mantissa) as int64.
-    #! Pass values that are already on the grid, for example from format_quantize().
+    #* FP のグリッドの値を、ビットの code（符号、指数、仮数）の int64 にする。
+    #! 値は先にグリッドに乗せておく（たとえば format_quantize() で）。
     '''
     
-    # Find the exponent of each absolute value
+    # 各絶対値の指数を求める
     size      = values.abs()
     exponent  = _fp_exponent(size, number_format)
     subnormal = size < 2.0 ** (1 - number_format.exponent_bias)
     
-    # The exponent field is 0 for subnormals, and the mantissa is the position between two powers of two
+    # subnormal の指数の欄は 0 で、仮数は 2 つの 2 のべき乗の間の位置になる
     hidden   = torch.where(subnormal, 0, 2**number_format.mantissa_bits        )
     field    = torch.where(subnormal, 0, exponent + number_format.exponent_bias).to(torch.int64)
     mantissa = (torch.ldexp(size, number_format.mantissa_bits - exponent) - hidden).to(torch.int64)
     code     = (field << number_format.mantissa_bits) | mantissa
     
-    # Put the sign bit on top for signed formats
+    # 符号付きの形式では、一番上に符号のビットを置く
     if not number_format.signed:
         return code
     return code | (torch.signbit(values).to(torch.int64) << (number_format.bits - 1))
@@ -65,21 +65,21 @@ def fp_encode(values: torch.Tensor, number_format: NumberFormat) -> torch.Tensor
 
 def fp_decode(codes: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn FP bit codes back into float32 values.
-    #! The top code of a nan_top format becomes NaN.
+    #* FP のビットの code を float32 の値に戻す。
+    #! nan_top の形式の一番上の code は NaN になる。
     '''
     
-    # Take the fields out of the code
+    # code から欄を取り出す
     mantissa_bits = number_format.mantissa_bits
     mantissa      = codes & (2**mantissa_bits - 1)
     field         = (codes >> mantissa_bits) & (2**number_format.exponent_bits - 1)
     
-    # Subnormals have no hidden 1, and use the lowest exponent
+    # subnormal には隠れた 1 がなく、一番低い指数を使う
     hidden   = torch.where(field > 0, 2**mantissa_bits, 0)
     exponent = torch.clamp(field - number_format.exponent_bias, min=1 - number_format.exponent_bias)
     value    = torch.ldexp((hidden + mantissa).to(torch.float32), (exponent - mantissa_bits).to(torch.int32))
     
-    # Add the sign, and turn the NaN code into NaN
+    # 符号を付け、NaN の code を NaN にする
     if number_format.signed:
         value = torch.where(((codes >> (number_format.bits - 1)) & 1) == 1, -value, value)
     if number_format.nan_top:
@@ -90,8 +90,8 @@ def fp_decode(codes: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
 
 def fp_values(number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Return every value that the FP format can hold, sorted and without NaN (-0 and 0 count as one value).
-    #? Tests and lookup tables use this.
+    #* FP の形式が持てるすべての値を、小さい順に、NaN を除いて返す（-0 と 0 は 1 つの値として数える）。
+    #? テストと表引きの表が使う。
     '''
     
     values = fp_decode(torch.arange(2**number_format.bits), number_format) + 0.0
@@ -100,8 +100,8 @@ def fp_values(number_format: NumberFormat) -> torch.Tensor:
 
 def _fp_exponent(x: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Return floor(log2(|x|)) for each value, but not lower than the lowest exponent of the format.
-    #? fp_step() and fp_encode() use this.
+    #* 各値の floor(log2(|x|)) を返す。ただし、形式の一番低い指数より下にはしない。
+    #? fp_step() と fp_encode() が使う。
     '''
     
     _, exponent = torch.frexp(x)

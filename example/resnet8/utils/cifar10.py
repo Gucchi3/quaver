@@ -1,5 +1,5 @@
 # @file cifar10.py
-# @brief Download CIFAR-10, load it onto the GPU, and make random crops and flips there
+# @brief CIFAR-10 をダウンロードして GPU に読み込み、ランダムな切り抜きと反転を GPU の上で作る
 # @author Kohei Yamaguchi, Claude
 
 from pathlib import Path
@@ -19,12 +19,12 @@ CIFAR10_MD5 = "c58f30108f718f92721af3b95e74349a"
 
 def cifar10_load(folder: Path, device: torch.device) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     '''
-    #* Load CIFAR-10 as uint8 images (N, 3, 32, 32) and int64 labels on the device: train images, train labels, test images, and test labels.
-    #? The first time, it downloads the python version of CIFAR-10 (about 170 MB) and unpacks it into folder/cifar-10-batches-py.
-    #! The download is checked with the MD5 sum on the CIFAR-10 page. A broken download is deleted, so the next run downloads it again.
+    #* CIFAR-10 を、uint8 の画像 (N, 3, 32, 32) と int64 のラベルとしてデバイスに読み込む。学習用の画像、学習用のラベル、テスト用の画像、テスト用のラベルを返す。
+    #? 初回は CIFAR-10 の python 版（約 170 MB）をダウンロードし、folder/cifar-10-batches-py に展開する。
+    #! ダウンロードしたファイルは、CIFAR-10 のページにある MD5 で確かめる。壊れていたら消すので、次に動かしたときにダウンロードし直す。
     '''
     
-    # Download and unpack CIFAR-10 the first time
+    # 初回は CIFAR-10 をダウンロードして展開する
     batches = folder / "cifar-10-batches-py"
     if not batches.exists():
         archive = folder / "cifar-10-python.tar.gz"
@@ -38,7 +38,7 @@ def cifar10_load(folder: Path, device: torch.device) -> tuple[torch.Tensor, torc
             file.extractall(folder, filter="data")
         archive.unlink()
     
-    # Read the five train batches and the test batch
+    # 学習用の 5 つの batch と、テスト用の batch を読む
     images, labels = [], []
     for name in [f"data_batch_{index}" for index in range(1, 6)] + ["test_batch"]:
         with (batches / name).open("rb") as file:
@@ -46,17 +46,17 @@ def cifar10_load(folder: Path, device: torch.device) -> tuple[torch.Tensor, torc
         images.append(torch.from_numpy(batch[b"data"]).reshape(-1, 3, 32, 32))
         labels.append(torch.tensor(batch[b"labels"]))
     
-    # The first five are the train set, and the last one is the test set
+    # 初めの 5 つが学習用、最後の 1 つがテスト用
     return torch.cat(images[:5]).to(device), torch.cat(labels[:5]).to(device), images[5].to(device), labels[5].to(device)
 
 
 def cifar10_augment(images: torch.Tensor) -> torch.Tensor:
     '''
-    #* Return a random crop (with 4 pixels of zero padding) and a random left-right flip of each image.
-    #? train_fit() calls this for each batch. Everything stays on the device.
+    #* 各画像を、ランダムに切り抜き（周りに 4 画素の 0 を足してから）、ランダムに左右反転したものを返す。
+    #? train_fit() が batch ごとに呼ぶ。すべてデバイスの上で行う。
     '''
     
-    # Pad, and take one 32 x 32 window at a random place for each image
+    # 周りを埋め、各画像からランダムな場所の 32 x 32 の窓を 1 つ取る
     count   = images.shape[0]
     device  = images.device
     padded  = torch.nn.functional.pad(images, (4, 4, 4, 4))
@@ -64,6 +64,6 @@ def cifar10_augment(images: torch.Tensor) -> torch.Tensor:
     columns = torch.randint(0, 9, (count, 1), device=device) + torch.arange(32, device=device)
     crops   = padded[torch.arange(count, device=device)[:, None, None, None], torch.arange(3, device=device)[None, :, None, None], rows[:, None, :, None], columns[:, None, None, :]]
     
-    # Flip about half of them
+    # 約半分を反転する
     flipped = torch.rand(count, device=device) < 0.5
     return torch.where(flipped[:, None, None, None], crops.flip(-1), crops)

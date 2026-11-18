@@ -1,5 +1,5 @@
 # @file sync.py
-# @brief Count the GPU-to-CPU syncs
+# @brief GPU から CPU への同期を数える
 # @author Kohei Yamaguchi, Claude
 
 from collections.abc import Callable
@@ -13,16 +13,16 @@ SYNC_MESSAGE = "called a synchronizing CUDA operation"
 
 def sync_count(fn: Callable, *args: object) -> int:
     '''
-    #* Run fn(*args) once, and count the GPU-to-CPU syncs that it makes.
-    #? Use it to check that your own layer has no syncs. CUDA graphs need zero syncs.
-    #! It returns 0 when there is no GPU.
+    #* fn(*args) を 1 回動かし、それが起こす GPU から CPU への同期を数える。
+    #? 自分で書いた層に同期がないかを確かめるのに使う。CUDA graph には同期が 0 個であることが要る。
+    #! GPU がないときは 0 を返す。
     '''
     
-    # There is nothing to count without a GPU
+    # GPU がないと数えるものがない
     if not torch.cuda.is_available():
         return 0
     
-    # Run fn while PyTorch warns on every sync
+    # PyTorch が同期のたびに警告を出すようにして、fn を動かす
     torch.cuda.synchronize()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")

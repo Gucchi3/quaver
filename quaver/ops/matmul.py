@@ -1,5 +1,5 @@
 # @file matmul.py
-# @brief Matrix product of two quantized tensors (for attention)
+# @brief 量子化した 2 つのテンソルの行列積（attention 用）
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -12,9 +12,9 @@ from .accumulate import ACCUMULATOR_FORMAT, accumulate_matmul, accumulate_produc
 
 def matmul_fake(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params: QuantParams) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Training mode matrix product: the exact integer accumulator times its scale, with float gradients.
-    #? The inputs must be fake-quantized values. FP inputs become integers on the way (FP4 values are doubled).
-    #! The codes are taken and turned back into values in the type of params_math_dtype(). The accumulator itself is always exact (float64).
+    #* training mode の行列積: 正確な整数の累積 x その scale で、勾配は float で求める。
+    #? 入力は fake quantize した値でなければならない。FP の入力は途中で整数になる（FP4 の値は 2 倍になる）。
+    #! code を取り出し、params_math_dtype() の型で値に戻す。累積そのものはいつも正確（float64）。
     '''
     
     dtype       = params_math_dtype()
@@ -24,8 +24,8 @@ def matmul_fake(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_param
 
 def matmul_integer(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, b_params: QuantParams) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Integer mode matrix product: the exact accumulator (int64) and its parameters.
-    #? The scale of the accumulator is (code scale of a) x (code scale of b), so scales for each row and each column broadcast.
+    #* integer mode の行列積: 正確な累積（int64）とそのパラメータ。
+    #? 累積の scale は (a の code の scale) x (b の code の scale) なので、行ごとと列ごとの scale は broadcast される。
     '''
     
     acc   = accumulate_matmul(q_a, a_params, q_b, b_params)
@@ -35,7 +35,7 @@ def matmul_integer(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, 
 
 def matmul_float(a: torch.Tensor, a_params: QuantParams, b: torch.Tensor, b_params: QuantParams) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Float mode (calibration): the float matrix product, and the parameters that the accumulator has in the other modes.
+    #* float のモード（calibration）: float の行列積と、ほかのモードで累積が持つパラメータ。
     '''
     
     scale = a_params.code_scale * b_params.code_scale

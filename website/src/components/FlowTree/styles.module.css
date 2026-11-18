@@ -1,6 +1,6 @@
 /*
- * A call tree on the paper: wood guide lines for the depth, the function names in code type, and what each call is for in a quiet line beside it.
- * The tabs are the modes. Private helpers are lighter, since the API reference does not list them.
+ * 紙の上の呼び出しの木: 深さは木の色の線で、関数の名前はコードの書体で、各呼び出しの目的はその横の控えめな行で見せる。
+ * タブはモード。内部用の関数は API リファレンスに載らないので、薄くする。
  */
 .flow {
   margin: 1.5rem 0 2rem;

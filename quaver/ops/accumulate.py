@@ -1,5 +1,5 @@
 # @file accumulate.py
-# @brief Exact accumulators of conv, linear, and matmul (INT32, or wider for block-scaled tensors)
+# @brief conv、linear、matmul の正確な累積（INT32、ブロックごとの scale のテンソルではもっと広い）
 # @author Kohei Yamaguchi, Claude
 
 from collections.abc import Callable
@@ -10,22 +10,22 @@ import torch
 from ..formats import NumberFormat, device_define, integer_format
 from ..scales  import QuantParams, params_bits, params_integers, params_named, params_unit
 
-# INT32 accumulators. Overflow is not modeled: the sums are exact (int64), and the device is assumed to stay inside INT32
+# INT32 の累積。あふれは再現しない: 和は正確（int64）で、デバイスは INT32 の中に収まると考える
 ACCUMULATOR_FORMAT = integer_format(32, signed=True)
 
-# Accumulators of block-scaled tensors: every block is put on one step before the sum, so they need more than 32 bits (54 for NVFP4 with K = 1024)
+# ブロックごとの scale のテンソルの累積: 和の前にすべてのブロックを 1 つの刻みにそろえるので、32 bit より多く要る（NVFP4 で K = 1024 なら 54 bit）
 WIDE_ACCUMULATOR_FORMAT = integer_format(62, signed=True)
 
-# One float64 conv or matmul is exact while its sums stay below 2^EXACT_BITS (the error of any algorithm stays far below 0.5)
+# float64 の conv や matmul 1 回は、和が 2^EXACT_BITS より小さい間は正確である（どの計算の仕方でも、誤差は 0.5 よりずっと小さい）
 EXACT_BITS = 46
 
 
 
 def accumulate_scale(x_params: QuantParams, w_params: QuantParams) -> torch.Tensor:
     '''
-    #* Return the scale of the accumulator of a conv or linear layer, one for each output channel (flat).
-    #? Accumulator scale = step of the input integers x step of the weight integers (params_unit: the code scale, or for block-scaled tensors the one step of all their blocks).
-    #! The input must have one step for the tensor. The weight must have one for the tensor or one for each output channel (axis 0).
+    #* conv か linear の層の累積の scale を、出力チャネルごとに 1 つ返す（平らにして）。
+    #? 累積の scale = 入力の整数の刻み x 重みの整数の刻み（params_unit: code の scale。ブロックごとの scale のテンソルなら、すべてのブロックに共通の刻み）。
+    #! 入力の刻みはテンソルで 1 つでなければならない。重みの刻みは、テンソルで 1 つか、出力チャネルごと（軸 0）に 1 つにする。
     '''
     
     return params_unit(x_params).reshape(-1) * params_unit(w_params).reshape(-1)
@@ -33,8 +33,8 @@ def accumulate_scale(x_params: QuantParams, w_params: QuantParams) -> torch.Tens
 
 def accumulate_format(x_params: QuantParams, w_params: QuantParams) -> NumberFormat:
     '''
-    #* Return the format of the accumulator: INT32, or the wide format when a block-scaled tensor is in the sum.
-    #! The math keeps this. model_export() writes int32 instead of the wide format when accumulate_bits() is 32 or less.
+    #* 累積の形式を返す: INT32 か、和にブロックごとの scale のテンソルが入るときは wide の形式。
+    #! 計算はこれを使い続ける。model_export() は、accumulate_bits() が 32 以下なら、wide の形式の代わりに int32 と書く。
     '''
     
     return WIDE_ACCUMULATOR_FORMAT if x_params.block is not None or w_params.block is not None else ACCUMULATOR_FORMAT
@@ -42,8 +42,8 @@ def accumulate_format(x_params: QuantParams, w_params: QuantParams) -> NumberFor
 
 def accumulate_bits(x_params: QuantParams, w_params: QuantParams, count: int, bias_peak: int = 0) -> int:
     '''
-    #* Return the bits (with the sign) that a sum of count products and a bias can need in the worst case, from the formats and the largest |bias code|.
-    #? Without a bias: params_bits() of both sides + ceil(log2(count)) + 1. A bias adds one more bit only when it can carry the sum past that. model_export() uses this.
+    #* count 個の積とバイアスの和に、一番悪い場合に要るビット数（符号を含む）を、形式と |バイアスの code| の最大から求めて返す。
+    #? バイアスなし: 両側の params_bits() + ceil(log2(count)) + 1。バイアスは、和をそれより大きくしうるときだけ、もう 1 bit 足す。model_export() が使う。
     '''
     
     largest = 2 ** (params_bits(x_params) + params_bits(w_params) + (count - 1).bit_length()) - 1
@@ -52,8 +52,8 @@ def accumulate_bits(x_params: QuantParams, w_params: QuantParams, count: int, bi
 
 def accumulate_conv2d(q_x: torch.Tensor, x_params: QuantParams, q_w: torch.Tensor, w_params: QuantParams, stride: int | tuple[int, int] = 1, padding: int | tuple[int, int] = 0, dilation: int | tuple[int, int] = 1, groups: int = 1) -> torch.Tensor:
     '''
-    #* Return the exact accumulator (int64) of a conv on integer codes.
-    #? The zero points are removed first, so the padding adds exact zeros. Block-scaled codes are multiplied by the codes of their block scales first. The device op torch.ops.quaver.accumulate_conv2d does it.
+    #* 整数の code での conv の、正確な累積（int64）を返す。
+    #? 先に zero point を引くので、パディングは正確な 0 を足す。ブロックごとの scale の code には、先にそのブロックの scale の code をかける。デバイスの op torch.ops.quaver.accumulate_conv2d が計算する。
     '''
     
     x, w  = _accumulate_parts(x_params), _accumulate_parts(w_params)
@@ -63,8 +63,8 @@ def accumulate_conv2d(q_x: torch.Tensor, x_params: QuantParams, q_w: torch.Tenso
 
 def accumulate_linear(q_x: torch.Tensor, x_params: QuantParams, q_w: torch.Tensor, w_params: QuantParams) -> torch.Tensor:
     '''
-    #* Return the exact accumulator (int64) of a linear layer on integer codes.
-    #? The device op torch.ops.quaver.accumulate_linear does it.
+    #* 整数の code での linear の層の、正確な累積（int64）を返す。
+    #? デバイスの op torch.ops.quaver.accumulate_linear が計算する。
     '''
     
     x, w = _accumulate_parts(x_params), _accumulate_parts(w_params)
@@ -73,8 +73,8 @@ def accumulate_linear(q_x: torch.Tensor, x_params: QuantParams, q_w: torch.Tenso
 
 def accumulate_matmul(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, b_params: QuantParams) -> torch.Tensor:
     '''
-    #* Return the exact accumulator (int64) of a matrix product of integer codes.
-    #? The device op torch.ops.quaver.accumulate_matmul does it.
+    #* 整数の code の行列積の、正確な累積（int64）を返す。
+    #? デバイスの op torch.ops.quaver.accumulate_matmul が計算する。
     '''
     
     a, b = _accumulate_parts(a_params), _accumulate_parts(b_params)
@@ -85,9 +85,9 @@ def accumulate_matmul(q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tenso
 def accumulate_conv2d_device(q_x: torch.Tensor, x_zero_point: torch.Tensor, x_block: torch.Tensor | None, q_w: torch.Tensor, w_zero_point: torch.Tensor, w_block: torch.Tensor | None, x_format: str, x_scale_format: str, w_format: str,
                              w_scale_format: str, out_format: str, stride: list[int], padding: list[int], dilation: list[int], groups: int) -> torch.Tensor:
     '''
-    #* Device op "accumulate_conv2d": the exact sum of (code - zero point) x (code of the block scale) products of a conv, as int64.
-    #? x_block and w_block are the codes of the block scales of each value (None for tensors without blocks), and the scale formats name them ("" without blocks).
-    #! out_format names the accumulator for the device: int32, or int62 when a block-scaled tensor is in the sum. The sum itself is exact (int64).
+    #* デバイスの op "accumulate_conv2d": conv の (code - zero point) x （ブロックの scale の code）の積の正確な和を、int64 で返す。
+    #? x_block と w_block は各値のブロックの scale の code（ブロックのないテンソルでは None）で、scale の形式がその名前を表す（ブロックがないときは ""）。
+    #! out_format はデバイスでの累積の名前: int32、または和にブロックごとの scale のテンソルが入るときは int62。和そのものは正確（int64）である。
     '''
     
     x_params = params_named(x_zero_point, x_format, x_block, x_scale_format)
@@ -99,7 +99,7 @@ def accumulate_conv2d_device(q_x: torch.Tensor, x_zero_point: torch.Tensor, x_bl
 def accumulate_linear_device(q_x: torch.Tensor, x_zero_point: torch.Tensor, x_block: torch.Tensor | None, q_w: torch.Tensor, w_zero_point: torch.Tensor, w_block: torch.Tensor | None, x_format: str, x_scale_format: str, w_format: str,
                              w_scale_format: str, out_format: str) -> torch.Tensor:
     '''
-    #* Device op "accumulate_linear": the exact sum of the products of a linear layer, as int64, like accumulate_conv2d_device().
+    #* デバイスの op "accumulate_linear": accumulate_conv2d_device() と同じように、linear の層の積の正確な和を int64 で返す。
     '''
     
     x_params = params_named(x_zero_point, x_format, x_block, x_scale_format)
@@ -111,7 +111,7 @@ def accumulate_linear_device(q_x: torch.Tensor, x_zero_point: torch.Tensor, x_bl
 def accumulate_matmul_device(q_a: torch.Tensor, a_zero_point: torch.Tensor, a_block: torch.Tensor | None, q_b: torch.Tensor, b_zero_point: torch.Tensor, b_block: torch.Tensor | None, a_format: str, a_scale_format: str, b_format: str,
                              b_scale_format: str, out_format: str) -> torch.Tensor:
     '''
-    #* Device op "accumulate_matmul": the exact sum of the products of a matrix product a @ b, as int64, like accumulate_conv2d_device().
+    #* デバイスの op "accumulate_matmul": accumulate_conv2d_device() と同じように、行列積 a @ b の積の正確な和を int64 で返す。
     '''
     
     a_params = params_named(a_zero_point, a_format, a_block, a_scale_format)
@@ -121,8 +121,8 @@ def accumulate_matmul_device(q_a: torch.Tensor, a_zero_point: torch.Tensor, a_bl
 
 def accumulate_product(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     '''
-    #* Return a @ b. When one of the sizes is 1, use a broadcast product and a sum instead.
-    #! Some CUDA builds of PyTorch (seen with 2.13) send products with a size of 1 to a Triton kernel that compiles C the first time.
+    #* a @ b を返す。大きさの 1 つが 1 のときは、代わりに broadcast の積と和を使う。
+    #! PyTorch の一部の CUDA のビルド（2.13 で見た）は、大きさ 1 を含む積を、初回に C をコンパイルする Triton のカーネルに送る。
     '''
     
     if 1 in (a.shape[-2], a.shape[-1], b.shape[-1]):
@@ -132,8 +132,8 @@ def accumulate_product(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 def _accumulate_parts(params: QuantParams) -> tuple[torch.Tensor, torch.Tensor | None, str, str]:
     '''
-    #* Return what the device op needs from the parameters: the zero point (int64), the codes of the block scales (or None), the format name, and the scale format name ("" without blocks).
-    #? accumulate_conv2d(), accumulate_linear(), and accumulate_matmul() use this for both sides.
+    #* パラメータから、デバイスの op が要るものを返す: zero point（int64）、ブロックの scale の code（または None）、形式の名前、scale の形式の名前（ブロックがないときは ""）。
+    #? accumulate_conv2d()、accumulate_linear()、accumulate_matmul() が、両側に使う。
     '''
     
     if params.block is None:
@@ -143,12 +143,12 @@ def _accumulate_parts(params: QuantParams) -> tuple[torch.Tensor, torch.Tensor |
 
 def _accumulate_exact(op: Callable[[torch.Tensor, torch.Tensor], torch.Tensor], q_a: torch.Tensor, a_params: QuantParams, q_b: torch.Tensor, b_params: QuantParams, size: int) -> torch.Tensor:
     '''
-    #* Run op (a conv, linear, or matmul that sums size products) on the integers of both sides, exactly, as int64.
-    #? The device ops use this. When one float64 op could pass 2^EXACT_BITS, b is cut into parts of fewer bits, and the parts are added at their places.
-    #! The widths come from the formats (params_bits), so nothing is read from the GPU. A sum that needs more than 62 bits raises ValueError.
+    #* 両側の整数で op（size 個の積を足す conv、linear、matmul）を正確に計算し、int64 で返す。
+    #? デバイスの op が使う。float64 の op 1 回で 2^EXACT_BITS を超えうるときは、b を少ないビットの部分に分け、部分ごとの結果をその桁に足す。
+    #! 幅は形式から求める（params_bits）ので、GPU から何も読まない。62 bit より多く要る和は ValueError になる。
     '''
     
-    # The integers of both sides, and the widths of the sum and of one part of b
+    # 両側の整数と、和と b の 1 つの部分の幅
     a, b       = params_integers(q_a, a_params), params_integers(q_b, b_params)
     bits_a     = params_bits(a_params)
     bits_b     = params_bits(b_params)
@@ -157,7 +157,7 @@ def _accumulate_exact(op: Callable[[torch.Tensor, torch.Tensor], torch.Tensor], 
     if bits_a + bits_b + bits_sum > 62 or part < 1:
         raise ValueError(f"The exact sum needs {bits_a} + {bits_b} + {bits_sum} bits, more than int64 and float64 parts keep. Use narrower formats or fewer values in one sum.")
     
-    # Each part of b (the lower parts are 0 to 2^part - 1, and the top part keeps the sign), one exact float64 op each, added at its place
+    # b の各部分（下の部分は 0〜2^part - 1、一番上の部分は符号を持つ）を、それぞれ正確な float64 の op 1 回で計算し、その桁に足す
     count = -(-bits_b // part)
     total = torch.round(op(a.double(), (b if count == 1 else b & (2**part - 1)).double())).to(torch.int64)
     for index in range(1, count):

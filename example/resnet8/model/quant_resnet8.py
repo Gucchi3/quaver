@@ -1,5 +1,5 @@
 # @file quant_resnet8.py
-# @brief Quantized ResNet-8, made from the quaver samples
+# @brief quaver のサンプルで作った、量子化した ResNet-8
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -14,17 +14,17 @@ from .types             import Resnet8Setting
 
 class QuantResnet8(nn.Module):
     '''
-    #* Quantized ResNet-8: UINT8 input (scale 1/255), INT8 stem and classifier weights, block weights and ReLU outputs in the formats of the setting, INT8 residuals, and an average pool on the codes.
-    #? It has the layer names of Resnet8, so the folded FP32 weights load as they are. switch_integer_mode() moves the whole model to the integer mode.
-    #! It returns real logits in both modes. In the integer mode they come from the exact INT32 accumulator of the classifier.
+    #* 量子化した ResNet-8。入力は UINT8（scale 1/255）、stem と分類器の重みは INT8、ブロックの重みと ReLU の出力は setting の形式、残差は INT8 で、code の上で平均の pool をする。
+    #? 層の名前は Resnet8 と同じなので、畳み込んだ FP32 の重みをそのまま読み込める。switch_integer_mode() でモデル全体を integer mode にする。
+    #! どちらのモードでも実数の logits を返す。integer mode では、分類器の正確な INT32 の累積から求める。
     '''
     
     input_scale: torch.Tensor
     
     def __init__(self, setting: Resnet8Setting) -> None:
         '''
-        #* Make the stem, the blocks, the pool, and the classifier.
-        #? The stem and the classifier always have INT8 weights, and their zero points follow the setting like the other layers.
+        #* stem、ブロック、pool、分類器を作る。
+        #? stem と分類器の重みはいつも INT8 で、その zero point はほかの層と同じく setting に従う。
         '''
         
         super().__init__()
@@ -41,15 +41,15 @@ class QuantResnet8(nn.Module):
     
     def forward(self, images: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, QuantParams]:
         '''
-        #* Return the logits of uint8 images in the training mode, and the INT32 codes of the logits with their parameters in the integer mode.
-        #? The integer mode gives the codes like the device, so an exported model ends with the classifier. params_values() turns them into the logits.
+        #* training mode では uint8 の画像の logits を返し、integer mode では logits の INT32 の code とそのパラメータを返す。
+        #? integer mode はデバイスと同じく code を出すので、書き出したモデルは分類器で終わる。params_values() でそれを logits に変える。
         '''
         
-        # The input is the uint8 code with the scale 1/255: fake values in the training mode, and the codes in the integer mode
+        # 入力は scale 1/255 の uint8 の code: training mode では fake の値、integer mode では code
         params = QuantParams(self.input_scale, torch.zeros_like(self.input_scale), build_format("uint8"))
         x      = images.long() if self.integer_mode else images.float() * self.input_scale
         
-        # Stem, three blocks, pool, and classifier
+        # stem、ブロック 3 つ、pool、分類器
         x, params = self.stem_conv(x, params)
         x, params = self.stack1(x, params)
         x, params = self.stack2(x, params)

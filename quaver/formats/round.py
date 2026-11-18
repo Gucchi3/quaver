@@ -1,13 +1,13 @@
 # @file round.py
-# @brief Exact rounding functions
+# @brief 正確な丸めの関数
 # @author Kohei Yamaguchi, Claude
 
 ##########################################################
 '''
-Add a rounding mode
-1. Write round_xxx(x) to return the rounded tensor.
-2. Add "name: round_xxx" to ROUND_REGISTRY.
-3. Add the name to RoundMode in types.py.
+丸め方を足すとき
+1. 丸めたテンソルを返す round_xxx(x) を書く。
+2. ROUND_REGISTRY に "名前: round_xxx" を足す。
+3. types.py の RoundMode に名前を足す。
 '''
 ##########################################################
 
@@ -19,8 +19,8 @@ import torch
 
 def round_half_away(x: torch.Tensor) -> torch.Tensor:
     '''
-    #* Round to the nearest integer. A half goes away from zero.
-    #! This is exact for every float. floor(|x| + 0.5) is not exact, so do not use it.
+    #* 一番近い整数に丸める。ちょうど半分は 0 から遠い方へ丸める。
+    #! どの float でも正確である。floor(|x| + 0.5) は正確でないので使わない。
     '''
     
     whole = torch.trunc(x)
@@ -29,7 +29,7 @@ def round_half_away(x: torch.Tensor) -> torch.Tensor:
 
 def round_half_even(x: torch.Tensor) -> torch.Tensor:
     '''
-    #* Round to the nearest integer. A half goes to the even integer.
+    #* 一番近い整数に丸める。ちょうど半分は偶数の方へ丸める。
     '''
     
     return torch.round(x)
@@ -37,8 +37,8 @@ def round_half_even(x: torch.Tensor) -> torch.Tensor:
 
 def round_half_up(x: torch.Tensor) -> torch.Tensor:
     '''
-    #* Round to the nearest integer. A half goes up (toward +inf).
-    #! This is exact for every float. floor(x + 0.5) is not exact, so do not use it.
+    #* 一番近い整数に丸める。ちょうど半分は上（+inf の方）へ丸める。
+    #! どの float でも正確である。floor(x + 0.5) は正確でないので使わない。
     '''
     
     floor = torch.floor(x)
@@ -47,7 +47,7 @@ def round_half_up(x: torch.Tensor) -> torch.Tensor:
 
 def round_floor(x: torch.Tensor) -> torch.Tensor:
     '''
-    #* Round down, like an arithmetic right shift.
+    #* 算術右シフトと同じく、下へ丸める。
     '''
     
     return torch.floor(x)
@@ -63,8 +63,8 @@ ROUND_REGISTRY: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
 
 def build_round(name: str) -> Callable[[torch.Tensor], torch.Tensor]:
     '''
-    #* Return the rounding function for the name.
-    #! Add new modes to ROUND_REGISTRY.
+    #* 名前の丸めの関数を返す。
+    #! 新しい丸め方は ROUND_REGISTRY に足す。
     '''
     
     if name not in ROUND_REGISTRY:

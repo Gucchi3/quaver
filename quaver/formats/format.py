@@ -1,12 +1,12 @@
 # @file format.py
-# @brief The number formats by name, and the shared rounding onto them
+# @brief 名前で選ぶ数値形式と、それに共通の丸め
 # @author Kohei Yamaguchi, Claude
 
 ##########################################################
 '''
-Add a number format
-1. Make the format with integer_format() or fp_format().
-2. Add "name: format" to FORMAT_REGISTRY.
+数値形式を足すとき
+1. integer_format() か fp_format() で形式を作る。
+2. FORMAT_REGISTRY に "名前: 形式" を足す。
 '''
 ##########################################################
 
@@ -19,7 +19,7 @@ from .integer import integer_decode, integer_encode, integer_format
 from .round   import build_round
 from .types   import NumberFormat, RoundMode
 
-# Formats of values: int2 to int8, uint2 to uint8, fp4, and ufp4. Formats of block scales (BlockScaler): ue4m3 (NVFP4), uint6, and uint10 (integer block scales)
+# 値の形式: int2〜int8、uint2〜uint8、fp4、ufp4。ブロックの scale（BlockScaler）の形式: ue4m3（NVFP4）、uint6、uint10（整数のブロックの scale）
 FORMAT_REGISTRY: dict[str, NumberFormat] = {
     "int2"  : integer_format(2 , signed=True ),
     "int4"  : integer_format(4 , signed=True ),
@@ -38,9 +38,9 @@ FORMAT_REGISTRY: dict[str, NumberFormat] = {
 
 def build_format(name: str) -> NumberFormat:
     '''
-    #* Return the number format for the name.
-    #? INT formats of any width also work by name (int32 and int62 for the accumulators, uint1), so the device ops can get every format as a name.
-    #! Add new formats to FORMAT_REGISTRY.
+    #* 名前の数値形式を返す。
+    #? どの幅の INT の形式も名前で使える（累積の int32 と int62、uint1）ので、デバイスの op はどの形式も名前で受け取れる。
+    #! 新しい形式は FORMAT_REGISTRY に足す。
     '''
     
     if name in FORMAT_REGISTRY:
@@ -53,8 +53,8 @@ def build_format(name: str) -> NumberFormat:
 
 def format_round_mode(number_format: NumberFormat, mode: RoundMode | None = None) -> RoundMode:
     '''
-    #* Return mode, or the usual rounding of the format when mode is None: half_even for FP (like IEEE, OCP MX, and NVFP4), and half_away for INT (like TFLite).
-    #? Quantizer and the samples use this for their default rounding.
+    #* mode を返す。mode が None のときは、形式のいつもの丸めを返す: FP は half_even（IEEE、OCP MX、NVFP4 と同じ）、INT は half_away（TFLite と同じ）。
+    #? Quantizer とサンプルが、標準の丸めを決めるのに使う。
     '''
     
     if mode is not None:
@@ -64,12 +64,12 @@ def format_round_mode(number_format: NumberFormat, mode: RoundMode | None = None
 
 def format_quantize(x: torch.Tensor, number_format: NumberFormat, mode: RoundMode, zero_point: torch.Tensor | None = None) -> torch.Tensor:
     '''
-    #* Round x to the nearest value of the format, add the zero point, and stop at the ends of the range.
-    #? INT and FP use this same code. Only the grid step is different: 1 for INT, and the step at each exponent for FP.
-    #! Pass x that is already divided by the scale. Rounding comes before the zero point, like TFLite and the devices.
+    #* x を形式の一番近い値に丸め、zero point を足して、範囲の両端で止める。
+    #? INT と FP はこの同じコードを使う。違うのはグリッドの刻みだけで、INT は 1、FP は指数ごとの刻みになる。
+    #! x は先に scale で割っておく。TFLite やデバイスと同じく、丸めは zero point を足す前にする。
     '''
     
-    # Round on the grid of the format
+    # 形式のグリッドに丸める
     round_fn = build_round(mode)
     if number_format.kind == "int":
         grid = round_fn(x)
@@ -77,7 +77,7 @@ def format_quantize(x: torch.Tensor, number_format: NumberFormat, mode: RoundMod
         step = fp_step(x, number_format)
         grid = round_fn(x / step) * step
     
-    # Add the zero point, and stop at the ends of the range
+    # zero point を足し、範囲の両端で止める
     if zero_point is not None:
         grid = grid + zero_point
     return grid.clamp(number_format.min_value, number_format.max_value)
@@ -86,9 +86,9 @@ def format_quantize(x: torch.Tensor, number_format: NumberFormat, mode: RoundMod
 @device_define("quantize")
 def format_codes(x: torch.Tensor, scale: torch.Tensor, zero_point: torch.Tensor, number_format: str, mode: RoundMode) -> torch.Tensor:
     '''
-    #* Device op "quantize": the integer codes (int64) of x / scale on the format, with the zero point, stopped at the ends of the range.
-    #? Quantizer.encode() calls it as torch.ops.quaver.quantize. In an exported model it quantizes the input. The weights are folded into codes before the export.
-    #! FP codes are integers on the grid of the format (value / step_min), so FP4 1.5 is 3, as in every integer op of quaver.
+    #* デバイスの op "quantize": x / scale を形式に乗せた整数の code（int64）を、zero point を足して範囲の両端で止めて返す。
+    #? Quantizer.encode() が torch.ops.quaver.quantize として呼ぶ。書き出したモデルでは入力を量子化する。重みは書き出しの前に code に畳み込む。
+    #! FP の code は形式のグリッドの整数（value / step_min）なので、quaver のほかの整数の op と同じく、FP4 の 1.5 は 3 になる。
     '''
     
     named = build_format(number_format)
@@ -97,8 +97,8 @@ def format_codes(x: torch.Tensor, scale: torch.Tensor, zero_point: torch.Tensor,
 
 def format_encode(x: torch.Tensor, number_format: NumberFormat, mode: RoundMode) -> torch.Tensor:
     '''
-    #* Round x to the format, and return the codes for storage as int64: INT values, or FP bit codes.
-    #? Use this to store or export weights.
+    #* x を形式に丸め、保存用の code を int64 で返す: INT の値か、FP のビットの code。
+    #? 重みを保存するか書き出すときに使う。
     '''
     
     grid = format_quantize(x, number_format, mode)
@@ -109,7 +109,7 @@ def format_encode(x: torch.Tensor, number_format: NumberFormat, mode: RoundMode)
 
 def format_decode(codes: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn the codes for storage back into float32 values.
+    #* 保存用の code を float32 の値に戻す。
     '''
     
     if number_format.kind == "int":
@@ -119,8 +119,8 @@ def format_decode(codes: torch.Tensor, number_format: NumberFormat) -> torch.Ten
 
 def format_to_integer(values: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn grid values into integers for exact integer math: value / step_min as int64.
-    #? INT values stay the same. FP4 values are doubled (the step is 0.5), so 1.5 becomes 3.
+    #* 正確な整数の計算のために、グリッドの値を整数にする: value / step_min を int64 で返す。
+    #? INT の値はそのまま。FP4 の値は 2 倍になる（刻みが 0.5）ので、1.5 は 3 になる。
     '''
     
     return torch.round(values / number_format.step_min).to(torch.int64)

@@ -1,5 +1,5 @@
 # @file tiny_net.py
-# @brief The small CIFAR-10 model of the guides, for the flow page of the API reference
+# @brief ガイドの小さな CIFAR-10 のモデル。API リファレンスの流れのページ用
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -13,13 +13,13 @@ from quaver                 import Granularity, QuantAvgPool2d, QuantConv2d, Qua
 
 class TinyNet(nn.Module):
     '''
-    #* The small CIFAR-10 model of the guides.
-    #? flow_trace.py runs it in each mode and records its calls.
+    #* ガイドの小さな CIFAR-10 のモデル。
+    #? flow_trace.py が各モードで動かし、その呼び出しを記録する。
     '''
     
     def __init__(self) -> None:
         '''
-        #* Make the layers.
+        #* 層を作る。
         '''
         
         super().__init__()
@@ -35,7 +35,7 @@ class TinyNet(nn.Module):
     
     def forward(self, images: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, QuantParams]:
         '''
-        #* Run the model: fake-quantized values in the training mode, and codes in the integer mode.
+        #* モデルを動かす: training mode では fake quantize した値、integer mode では code を使う。
         '''
         
         x, params = self.quantizer.encode(images) if self.integer_mode else self.quantizer(images)

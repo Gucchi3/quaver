@@ -1,6 +1,6 @@
 // @ts-check
 
-// One sidebar for each tab: Docs (how to use quaver), Learn (quantization itself), and API (one page per file of quaver/, made from the folders)
+// タブごとにサイドバーを 1 つ: Docs（quaver の使い方）、Learn（量子化そのもの）、API（quaver/ のファイルごとに 1 ページ。フォルダから作る）
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {

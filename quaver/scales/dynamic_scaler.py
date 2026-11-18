@@ -1,5 +1,5 @@
 # @file dynamic_scaler.py
-# @brief Scale from the current tensor (dynamic quantization)
+# @brief 今のテンソルから求める scale（dynamic quantization）
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -16,16 +16,16 @@ from .types    import Granularity, GranularityKind
 
 class DynamicScaler(nn.Module):
     '''
-    #* Measure the range of the current tensor every time (dynamic quantization).
-    #? Good for weights and for activations with one scale for each token. It keeps no state, so it also measures in inference.
+    #* 毎回、今のテンソルの範囲を測る（dynamic quantization）。
+    #? 重みと、トークンごとに scale を 1 つ持つ活性化に向いている。状態を持たないので、推論でも測る。
     '''
     
     learnable: bool = False
     
     def __init__(self, percentile: float | None = None, symmetric: bool = True) -> None:
         '''
-        #* Keep the settings of the range.
-        #? percentile=None uses the maximum.
+        #* 範囲の設定を持つ。
+        #? percentile=None のときは最大を使う。
         '''
         
         super().__init__()
@@ -36,9 +36,9 @@ class DynamicScaler(nn.Module):
     
     def forward(self, x: torch.Tensor, number_format: NumberFormat, granularity: Granularity, update: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
         '''
-        #* Return the scale and the zero point of x. Both broadcast against x.
-        #? The op torch.ops.quaver.dynamic_scale measures them, so an exported model keeps one node with the settings (the device does the same math).
-        #! The scale gets no gradient (x is detached), as before.
+        #* x の scale と zero point を返す。どちらも x に broadcast できる。
+        #? op torch.ops.quaver.dynamic_scale が測るので、書き出したモデルは設定付きのノードを 1 つ残す（デバイスも同じ計算をする）。
+        #! これまでどおり、scale には勾配が来ない（x は detach する）。
         '''
         
         return torch.ops.quaver.dynamic_scale(x.detach(), number_format.name, self.percentile, self.symmetric, granularity.kind, granularity.axis, granularity.block_size)
@@ -47,9 +47,9 @@ class DynamicScaler(nn.Module):
 @device_define("dynamic_scale")
 def dynamic_scaler_device(x: torch.Tensor, number_format: str, percentile: float | None, symmetric: bool, kind: GranularityKind, axis: int, block_size: int) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* The op "dynamic_scale": the scale and the zero point of x from its range now (the maximum, or the percentile), for each group of the granularity.
-    #? DynamicScaler.forward() calls it as torch.ops.quaver.dynamic_scale. Both outputs broadcast against x.
-    #! The math is float (the range and the division). The device needs the same steps, so this op stays one node in an exported model.
+    #* op "dynamic_scale": 粒度のグループごとに、今の x の範囲（最大か percentile）から scale と zero point を求める。
+    #? DynamicScaler.forward() が torch.ops.quaver.dynamic_scale として呼ぶ。どちらの出力も x に broadcast できる。
+    #! 計算は float（範囲と割り算）。デバイスにも同じ手順が要るので、この op は書き出したモデルで 1 つのノードのまま残る。
     '''
     
     granularity       = Granularity(kind, axis, block_size)

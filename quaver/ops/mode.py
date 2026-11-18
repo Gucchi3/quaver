@@ -1,5 +1,5 @@
 # @file mode.py
-# @brief Pick the float, training, or integer version of every op
+# @brief すべての op の、float 版、training 版、integer 版を選ぶ
 # @author Kohei Yamaguchi, Claude
 
 from .activation import activation_fake, activation_float, activation_integer
@@ -22,9 +22,9 @@ INTEGER_OPS = OpSet(requantize=requantize_integer, add=add_integer, pool_avg2d=p
 
 def mode_ops(integer_mode: bool, float_mode: bool = False) -> OpSet:
     '''
-    #* Return the ops of the integer mode, the training mode, or the float mode.
-    #? A layer writes its forward pass once with these ops. The training and integer modes run the same integer math. The float mode (calibration) runs plain float ops.
-    #! integer_mode wins over float_mode.
+    #* integer mode、training mode、float のモードのどれかの op を返す。
+    #? 層は forward をこの op で 1 回だけ書く。training mode と integer mode は同じ整数の計算をする。float のモード（calibration）はただの float の op を動かす。
+    #! integer_mode は float_mode より優先する。
     '''
     
     if integer_mode:

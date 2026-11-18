@@ -1,5 +1,5 @@
 # @file nvfp4_resnet8.py
-# @brief ResNet-8 with block-scaled convs in the blocks (NVFP4 and the like), with integer math only
+# @brief ブロックの中でブロックごとの scale の conv（NVFP4 など）を使う ResNet-8 で、整数の計算だけで動く
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -14,17 +14,17 @@ from .types             import Resnet8Setting
 
 class Nvfp4Resnet8(nn.Module):
     '''
-    #* ResNet-8 with block-scaled convs in the blocks (NVFP4: fp4 weights and ufp4 inputs with a ue4m3 scale for each block of 16), and INT8 or UINT8 codes with static scales outside.
-    #? The stem and the classifier have INT8 weights (the input and the output layers). The residuals are UINT8, and ReLU, the adds, and the pool run the integer math on the codes.
-    #! The integer mode runs every layer with integers, like QuantResnet8. The layer names are those of Resnet8, so the folded FP32 weights load as they are.
+    #* ブロックの中でブロックごとの scale の conv を使う ResNet-8（NVFP4: fp4 の重みと ufp4 の入力で、16 個のブロックごとに ue4m3 の scale を持つ）。ブロックの外は、静的な scale の INT8 か UINT8 の code にする。
+    #? stem と分類器の重みは INT8（入力の層と出力の層）。残差は UINT8 で、ReLU、足し算、pool は code の上で整数の計算をする。
+    #! integer mode では、QuantResnet8 と同じく、どの層も整数で計算する。層の名前は Resnet8 と同じなので、畳み込んだ FP32 の重みをそのまま読み込める。
     '''
     
     input_scale: torch.Tensor
     
     def __init__(self, setting: Resnet8Setting) -> None:
         '''
-        #* Make the stem, the blocks, the pool, and the classifier.
-        #? setting gives the formats of the blocks: the elements of the weights and of the activations, and the format of the block scales.
+        #* stem、ブロック、pool、分類器を作る。
+        #? setting がブロックの形式を決める: 重みと活性化の要素の形式と、ブロックの scale の形式。
         '''
         
         super().__init__()
@@ -41,15 +41,15 @@ class Nvfp4Resnet8(nn.Module):
     
     def forward(self, images: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, QuantParams]:
         '''
-        #* Return the logits of uint8 images in the training mode, and the INT32 codes of the logits with their parameters in the integer mode.
-        #? The integer mode gives the codes like the device, so an exported model ends with the classifier. params_values() turns them into the logits.
+        #* training mode では uint8 の画像の logits を返し、integer mode では logits の INT32 の code とそのパラメータを返す。
+        #? integer mode はデバイスと同じく code を出すので、書き出したモデルは分類器で終わる。params_values() でそれを logits に変える。
         '''
         
-        # The input is the uint8 code with the scale 1/255: fake values in the training mode, and the codes in the integer mode
+        # 入力は scale 1/255 の uint8 の code: training mode では fake の値、integer mode では code
         params = QuantParams(self.input_scale, torch.zeros_like(self.input_scale), build_format("uint8"))
         x      = images.long() if self.integer_mode else images.float() * self.input_scale
         
-        # The stem with INT8 weights, three blocks with block-scaled convs, the pool on the UINT8 codes, and the classifier with INT8 weights
+        # INT8 の重みの stem、ブロックごとの scale の conv を持つブロック 3 つ、UINT8 の code の pool、INT8 の重みの分類器
         x, params = self.stem_conv(x, params)
         x, params = self.stack1(x, params)
         x, params = self.stack2(x, params)

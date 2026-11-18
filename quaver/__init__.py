@@ -7,12 +7,12 @@ from .scales      import BlockScaler, DynamicScaler, Granularity, LsqScaler, Qua
 
 '''
 quaver/
-├── __init__.py    # the basic API: sample layers, quantizers, and whole-model tools (every other public name is in its folder)
-├── formats/       # number formats (INT, FP, UFP), exact rounding, and the registration of the device ops (torch.ops.quaver)
-├── scales/        # how scales are chosen: dynamic, max, percentile, LSQ, shared, block scales (NVFP4, integer)
-├── quantizers/    # Quantizer (fake quantization), LSQ, build from QuantizerSpec
-├── ops/           # quantized ops in the training mode and the integer mode (the integer steps are device ops)
-├── model_tools/   # whole-model helpers: collect, switch, freeze, calibrate, LSQ, fold, TF32, syncs
-├── samples/       # sample layers: Conv2d, Linear, block-scaled Conv2d and Linear (NVFP4 and the like), SimA attention, residual add, average pooling
-└── export/        # export a model in the integer mode for the device: model.json and model.bin (needs numpy)
+├── __init__.py    # 基本の API: サンプルの層、量子化器、モデル全体の道具（ほかの公開の名前は、それぞれのフォルダにある）
+├── formats/       # 数値形式（INT、FP、UFP）、正確な丸め、デバイスの op の登録（torch.ops.quaver）
+├── scales/        # scale の選び方: dynamic、max、percentile、LSQ、共有、ブロックの scale（NVFP4、整数）
+├── quantizers/    # Quantizer（fake quantization）、LSQ、QuantizerSpec から作る関数
+├── ops/           # training mode と integer mode の量子化した op（integer の手順はデバイスの op）
+├── model_tools/   # モデル全体の道具: 集める、切り替える、止める、calibration、LSQ、畳み込み、TF32、同期
+├── samples/       # サンプルの層: Conv2d、Linear、ブロックごとの scale の Conv2d と Linear（NVFP4 など）、SimA の attention、残差の足し算、平均の pooling
+└── export/        # integer mode のモデルをデバイス用に書き出す: model.json と model.bin（numpy が要る）
 '''

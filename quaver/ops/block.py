@@ -1,5 +1,5 @@
 # @file block.py
-# @brief Quantize to block-scaled formats (NVFP4 and the like) like the device: the block scales from the block maxima, then the elements, with integers only
+# @brief デバイスと同じく、ブロックごとの scale の形式（NVFP4 など）に量子化する: ブロックの最大からブロックの scale を、次に要素を、整数だけで求める
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -13,9 +13,9 @@ from .wide       import wide_round_format
 
 def block_quantize_fake(x: torch.Tensor, x_params: QuantParams, number_format: NumberFormat, scale_format: NumberFormat, tensor_scale: torch.Tensor, granularity: Granularity, style_name: str) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Training mode: quantize to the block-scaled format with the integer math of block_quantize_integer, with straight-through gradients.
-    #? x must hold exact values of codes with one scale for the tensor (the output of another op), so turn off TF32.
-    #! The gradient passes where the value fits under the top of its block (the top of the format x its block scale).
+    #* training mode: block_quantize_integer の整数の計算で、ブロックごとの scale の形式に量子化する。勾配はそのまま通す。
+    #? x は、テンソルで scale が 1 つの code の正確な値（ほかの op の出力）でなければならないので、TF32 を止めておく。
+    #! 勾配は、値がそのブロックの上限（形式の上限 x ブロックの scale）の下に収まる所を通る。
     '''
     
     dtype         = params_math_dtype()
@@ -26,18 +26,18 @@ def block_quantize_fake(x: torch.Tensor, x_params: QuantParams, number_format: N
 
 def block_quantize_integer(q: torch.Tensor, q_params: QuantParams, number_format: NumberFormat, scale_format: NumberFormat, tensor_scale: torch.Tensor, granularity: Granularity, style_name: str) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Integer mode: quantize codes with one static scale (codes of a format, or an accumulator of any width) to a block-scaled format, as the device does it while running.
-    #? Block scale code = |largest code of the block| x M6 / 2^n6, rounded half to even onto scale_format. Element code = code x Mr / (block scale code x 2^nr), rounded half to even.
-    #? On the device the division by the block code can be comparisons with the midpoints of the grid times the block code. The device op torch.ops.quaver.block_quantize does it, with M6, n6, Mr, and nr from here.
-    #! q_params must have one scale for the tensor. Integers only, exact for any width of q (wide_round_format).
+    #* integer mode: 静的な scale が 1 つの code（形式の code か、どの幅の累積でもよい）を、デバイスが動きながらするのと同じく、ブロックごとの scale の形式に量子化する。
+    #? ブロックの scale の code = |ブロックで一番大きな code| x M6 / 2^n6 を、scale_format に half to even で丸めたもの。要素の code = code x Mr / (ブロックの scale の code x 2^nr) を half to even で丸めたもの。
+    #? デバイスでは、ブロックの code での割り算を、グリッドの中点 x ブロックの code との比較にできる。デバイスの op torch.ops.quaver.block_quantize が計算し、M6、n6、Mr、nr はここで求める。
+    #! q_params の scale はテンソルで 1 つでなければならない。整数だけを使い、q がどの幅でも正確（wide_round_format）。
     '''
     
-    # The static ratios of one step of q to one step of the block scales, and to one step of the elements (counted in steps of the block scales)
+    # q の 1 刻みと、ブロックの scale の 1 刻みの静的な比、要素の 1 刻みとの静的な比（ブロックの scale の刻みで数える）
     step     = tensor_scale.double() * scale_format.step_min
     to_scale = requantize_params(q_params.code_scale.double() / (number_format.max_value * step), style_name)
     to_value = requantize_params(q_params.code_scale.double() / (number_format.step_min * step) , style_name)
     
-    # The codes of the elements and of their block scales, and the scale of each value
+    # 要素とそのブロックの scale の code と、各値の scale
     codes, scales = torch.ops.quaver.block_quantize(q, q_params.zero_point.to(torch.int64), to_scale.multiplier, to_scale.shift, to_value.multiplier, to_value.shift, number_format.name, scale_format.name, granularity.kind, granularity.axis,
                                                   granularity.block_size)
     scale         = scales.to(torch.float32) * scale_format.step_min * tensor_scale
@@ -49,25 +49,25 @@ def block_quantize_integer(q: torch.Tensor, q_params: QuantParams, number_format
 def block_quantize_device(q: torch.Tensor, zero_point: torch.Tensor, scale_multiplier: torch.Tensor, scale_shift: torch.Tensor, value_multiplier: torch.Tensor, value_shift: torch.Tensor, out_format: str, scale_format: str, kind: GranularityKind,
                           axis: int, block_size: int) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* Device op "block_quantize": the code of each block scale from the largest |code| of its block, then each element divided by its block code, both rounded half to even.
-    #? block_quantize_integer() calls it as torch.ops.quaver.block_quantize. Returns the element codes, and the block codes spread back so that they broadcast against q.
-    #! The multipliers and shifts are static: scale_* turns one step of q into steps of the block scales at the top of out_format, value_* into steps of the elements.
+    #* デバイスの op "block_quantize": 各ブロックの scale の code をそのブロックの |code| の最大から求め、次に各要素をそのブロックの code で割る。どちらも half to even で丸める。
+    #? block_quantize_integer() が torch.ops.quaver.block_quantize として呼ぶ。要素の code と、q に broadcast できるように広げ直したブロックの code を返す。
+    #! multiplier と shift は静的: scale_* は q の 1 刻みを out_format の上限でのブロックの scale の刻みに、value_* は要素の刻みに直す。
     '''
     
-    # The code of each block scale, from the largest |code| of the block (never below the smallest step)
+    # 各ブロックの scale の code を、ブロックの |code| の最大から求める（一番小さな刻みより下にはしない）
     granularity = Granularity(kind, axis, block_size)
     centered    = q - zero_point
     largest     = group_split(centered.abs(), granularity).amax(dim=1)
     scales      = wide_round_format(largest, scale_multiplier, torch.ones_like(largest), scale_shift, build_format(scale_format), "half_even").clamp(min=1)
     scales      = group_merge(scales, q.shape, granularity)
     
-    # Each element, divided by the code of its block scale, rounded half to even onto the format
+    # 各要素をそのブロックの scale の code で割り、形式に half to even で丸める
     return wide_round_format(centered, value_multiplier, scales, value_shift, build_format(out_format), "half_even"), scales
 
 
 def block_quantize_float(x: torch.Tensor, x_params: QuantParams, number_format: NumberFormat, scale_format: NumberFormat, tensor_scale: torch.Tensor, granularity: Granularity, style_name: str) -> tuple[torch.Tensor, QuantParams]:
     '''
-    #* Float mode (calibration): return x as it is, with the block scales that its float values would get.
+    #* float のモード（calibration）: x をそのまま返し、float の値がもらうはずのブロックの scale も返す。
     '''
     
     block = compute_block(group_split(x.detach(), granularity).abs().amax(dim=1), tensor_scale, number_format, scale_format)

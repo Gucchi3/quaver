@@ -1,5 +1,5 @@
 # @file activation.py
-# @brief ReLU and ReLU6 on integer codes
+# @brief 整数の code での ReLU と ReLU6
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -12,8 +12,8 @@ from .types    import ActivationKind
 
 def activation_fake(x: torch.Tensor, x_params: QuantParams, kind: ActivationKind) -> torch.Tensor:
     '''
-    #* Training mode ReLU or ReLU6: clamp the codes like activation_integer, with straight-through gradients.
-    #? kind is "none", "relu", or "relu6". The math uses the type of params_math_dtype().
+    #* training mode の ReLU か ReLU6: activation_integer と同じく code を clamp し、勾配はそのまま通す。
+    #? kind は "none"、"relu"、"relu6" のどれか。計算には params_math_dtype() の型を使う。
     '''
     
     dtype         = params_math_dtype()
@@ -25,10 +25,10 @@ def activation_fake(x: torch.Tensor, x_params: QuantParams, kind: ActivationKind
 
 def activation_integer(q_x: torch.Tensor, x_params: QuantParams, kind: ActivationKind) -> torch.Tensor:
     '''
-    #* Integer mode ReLU or ReLU6: clamp the codes between the code of 0 and the code of 6.
-    #? The device op torch.ops.quaver.activation does the clamp. The code of 6 is static (found here, and given to the device). No activation keeps the codes, without an op.
-    #? Either way the codes get a note of their parameters, so an exported model knows the scale of the accumulator.
-    #! Use it on accumulators (INT32) before you requantize, so the limits are exact integers.
+    #* integer mode の ReLU か ReLU6: code を、0 の code と 6 の code の間に clamp する。
+    #? デバイスの op torch.ops.quaver.activation が clamp する。6 の code は静的（ここで求めてデバイスに渡す）。活性化なしのときは、op を使わずに code をそのまま返す。
+    #? どちらの場合も code にパラメータの印を付けるので、書き出したモデルは累積の scale が分かる。
+    #! requantize の前の累積（INT32）に使う。そうすると、上限と下限が正確な整数になる。
     '''
     
     if kind == "none":
@@ -41,8 +41,8 @@ def activation_integer(q_x: torch.Tensor, x_params: QuantParams, kind: Activatio
 @device_define("activation")
 def activation_device(q_x: torch.Tensor, zero_point: torch.Tensor, six: torch.Tensor, kind: ActivationKind) -> torch.Tensor:
     '''
-    #* Device op "activation": ReLU clamps the codes at the code of 0 (the zero point), and ReLU6 also at the code of 6 (six).
-    #? activation_integer() calls it as torch.ops.quaver.activation, for "relu" and "relu6". ReLU gets the zero point as six, and does not use it.
+    #* デバイスの op "activation": ReLU は code を 0 の code（zero point）で、ReLU6 はさらに 6 の code（six）で clamp する。
+    #? activation_integer() が、"relu" と "relu6" のときに torch.ops.quaver.activation として呼ぶ。ReLU では six に zero point を渡し、six は使わない。
     '''
     
     codes, _ = _activation_codes(q_x, zero_point, six, kind)
@@ -51,7 +51,7 @@ def activation_device(q_x: torch.Tensor, zero_point: torch.Tensor, six: torch.Te
 
 def activation_float(x: torch.Tensor, x_params: QuantParams, kind: ActivationKind) -> torch.Tensor:
     '''
-    #* Float mode (calibration): ReLU or ReLU6 on the float values.
+    #* float のモード（calibration）: float の値に ReLU か ReLU6 をかける。
     '''
     
     if kind == "none":
@@ -61,15 +61,15 @@ def activation_float(x: torch.Tensor, x_params: QuantParams, kind: ActivationKin
 
 def _activation_codes(codes: torch.Tensor, zero: torch.Tensor, six: torch.Tensor, kind: ActivationKind) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* Clamp the codes at the code of 0 (and at the code of 6 for ReLU6), and say which codes did not change.
-    #? activation_fake() and activation_device() use this, so both modes always agree.
+    #* code を 0 の code で（ReLU6 では 6 の code でも）clamp し、変わらなかった code を返す。
+    #? activation_fake() と activation_device() が使うので、2 つのモードはいつも一致する。
     '''
     
-    # No activation keeps every code
+    # 活性化なしのときは、すべての code をそのまま残す
     if kind == "none":
         return codes, torch.ones_like(codes, dtype=torch.bool)
     
-    # Clamp at the code of 0, and at the code of 6 for ReLU6
+    # 0 の code で clamp し、ReLU6 では 6 の code でも clamp する
     limited = torch.maximum(codes, zero)
     if kind == "relu6":
         limited = torch.minimum(limited, six)

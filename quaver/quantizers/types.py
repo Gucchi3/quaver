@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Types for the quantizers
+# @brief 量子化器の型
 # @author Kohei Yamaguchi, Claude
 
 from dataclasses import dataclass
@@ -15,9 +15,9 @@ from ..scales  import Granularity, GranularityKind, LsqInit
 @dataclass(frozen=True)
 class QuantizerSpec:
     '''
-    #* Hold the settings to build a Quantizer from a config file.
-    #? build_quantizer() turns this into a Quantizer. Copy the values of your config into it. round_mode=None uses the usual rounding of the format (half_even for FP, half_away for INT).
-    #! Set batch_axis (usually 0) for activations, so that the LSQ gradient scale counts one sample. freeze_step stops the max, percentile, and shared ranges after that many updates.
+    #* 設定ファイルから Quantizer を作るための設定を持つ。
+    #? build_quantizer() がこれを Quantizer にする。自分の config の値をここに写す。round_mode=None のときは、形式のいつもの丸め（FP は half_even、INT は half_away）を使う。
+    #! 活性化には batch_axis（たいてい 0）を決め、LSQ の勾配の scale が 1 つのサンプルを数えるようにする。freeze_step は、その回数の更新のあとで、max、percentile、共有の範囲を止める。
     '''
     
     format     : str              = "int8"
@@ -37,16 +37,16 @@ class QuantizerSpec:
 
 class Scaler(Protocol):
     '''
-    #* Describe what a scaler has: learnable, and a call that returns the scale and the zero point.
-    #? Write your own scaler in this shape to pass it to Quantizer.
+    #* scaler が持つものを表す: learnable と、scale と zero point を返す呼び出し。
+    #? この形で自分の scaler を書けば、Quantizer に渡せる。
     '''
     
     learnable: bool
     
     def __call__(self, x: torch.Tensor, number_format: NumberFormat, granularity: Granularity, update: bool) -> tuple[torch.Tensor, torch.Tensor]:
         '''
-        #* Return the scale and the zero point. Both broadcast against x.
-        #! update=False must not change any state.
+        #* scale と zero point を返す。どちらも x に broadcast できる。
+        #! update=False のときは、どの状態も変えてはならない。
         '''
         
         ...

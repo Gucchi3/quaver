@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Types for the quantized ops
+# @brief 量子化した op の型
 # @author Kohei Yamaguchi, Claude
 
 from collections.abc import Callable
@@ -18,9 +18,9 @@ NeqScope       = Literal["token", "tensor"]
 @dataclass(frozen=True)
 class RequantizeStyle:
     '''
-    #* Describe how a device rescales an accumulator: the limit of the multiplier, the limit of the shift, and the rounding.
-    #? multiplier_max = 0 means "exact": keep the real ratio in float64, not a multiplier and a shift.
-    #! The product (accumulator x multiplier) is kept at full width, like 32 + 16 bits for a 16-bit multiplier.
+    #* デバイスが累積の scale を直す方法を表す: multiplier の上限、shift の上限、丸め方。
+    #? multiplier_max = 0 は "exact" の意味: multiplier と shift でなく、実数の比を float64 で持つ。
+    #! 積（累積 x multiplier）は全部の幅で持つ。16 bit の multiplier なら 32 + 16 bit。
     '''
     
     name          : str
@@ -32,8 +32,8 @@ class RequantizeStyle:
 @dataclass(frozen=True)
 class FixedPoint:
     '''
-    #* Hold the multiplier and the shift that stand for a ratio of scales: ratio = multiplier / 2^shift.
-    #? The "exact" style keeps the ratio itself in multiplier (float64), with a shift of 0.
+    #* scale の比を表す multiplier と shift を持つ: ratio = multiplier / 2^shift。
+    #? "exact" の style は、比そのものを multiplier に入れ（float64）、shift を 0 にする。
     '''
     
     multiplier: torch.Tensor
@@ -44,8 +44,8 @@ class FixedPoint:
 @dataclass(frozen=True)
 class OpSet:
     '''
-    #* Hold one version (training, integer, or float) of every op, so that a layer writes its forward pass only once.
-    #? mode_ops() returns the set for a mode. The versions of an op take the same arguments.
+    #* すべての op の 1 つの版（training、integer、float）を持ち、層が forward を 1 回だけ書けるようにする。
+    #? mode_ops() が、モードの組を返す。1 つの op の各版は同じ引数を受け取る。
     '''
     
     requantize         : Callable

@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Types for the number formats
+# @brief 数値形式の型
 # @author Kohei Yamaguchi, Claude
 
 from dataclasses import dataclass
@@ -12,8 +12,8 @@ RoundMode = Literal["half_away", "half_even", "half_up", "floor"]
 @dataclass(frozen=True)
 class NumberFormat:
     '''
-    #* Hold the details of one number format (INT or FP), on the grid after the value is divided by the scale.
-    #? Make one with integer_format() or fp_format(), or get one by name with build_format().
+    #* 1 つの数値形式（INT か FP）の詳しい情報を、値を scale で割ったあとのグリッドで持つ。
+    #? integer_format() か fp_format() で作るか、build_format() で名前から受け取る。
     '''
     
     name         : str

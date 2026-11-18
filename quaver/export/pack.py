@@ -1,5 +1,5 @@
 # @file pack.py
-# @brief Pack codes into bytes like the memory of the device: 2-bit and 4-bit codes from the low bits up, wider codes little-endian, and FP codes as their bit patterns
+# @brief code をデバイスのメモリと同じ形でバイトに詰める: 2 bit と 4 bit の code は下のビットから詰め、それより広い code はリトルエンディアンにし、FP の code はビットのパターンで置く
 # @author Kohei Yamaguchi, Claude
 
 from typing import Any
@@ -8,29 +8,29 @@ import torch
 
 from ..formats import build_format, fp_decode, fp_encode
 
-# The widths in memory: 2 and 4 bits are packed into bytes, and every other width takes the next of 8, 16, 32, and 64 bits (int6 in 8 bits, uint10 in 16)
+# メモリでの幅: 2 bit と 4 bit はバイトに詰め、ほかの幅は 8、16、32、64 bit のうち次に大きいものを使う（int6 は 8 bit、uint10 は 16 bit）
 PACK_WIDTHS = (2, 4, 8, 16, 32, 64)
 
 
 
 def pack_codes(codes: torch.Tensor, number_format: str) -> tuple[bytes, dict[str, Any]]:
     '''
-    #* Pack codes (in the order of their elements) into bytes, and say how they are stored: the encoding and the width in bits.
-    #? INT codes are two's complement in their width ("int"). FP codes (grid integers in quaver) are stored as their bit patterns: E2M1 for fp4, E2M2 for ufp4, E4M3 for ue4m3 ("fp").
-    #? "float32" and "float64" store floats as IEEE 754 ("ieee754"). 2-bit and 4-bit values fill each byte from the low bits up: the earlier element is in the low bits.
-    #! Values out of the range of the format raise ValueError. Needs numpy (the "export" extra).
+    #* code（要素の順）をバイトに詰め、置き方（encoding と、ビットでの幅）を返す。
+    #? INT の code は、その幅の 2 の補数で置く（"int"）。FP の code（quaver ではグリッドの整数）は、ビットのパターンで置く: fp4 は E2M1、ufp4 は E2M2、ue4m3 は E4M3（"fp"）。
+    #? "float32" と "float64" は float を IEEE 754 で置く（"ieee754"）。2 bit と 4 bit の値は、各バイトを下のビットから埋める: 前の要素が下のビットに入る。
+    #! 形式の範囲の外の値は ValueError になる。numpy が要る（"export" の extra）。
     '''
     
-    # numpy writes the bytes in a fixed order (little-endian), so the file does not depend on the computer
+    # numpy はバイトを決まった順（リトルエンディアン）で書くので、ファイルはコンピュータによらない
     import numpy
     
-    # Floats as IEEE 754
+    # float は IEEE 754 で置く
     flat = codes.detach().cpu().reshape(-1)
     if number_format in ("float32", "float64"):
         bits = 32 if number_format == "float32" else 64
         return flat.double().numpy().astype(f"<f{bits // 8}").tobytes(), {"encoding": "ieee754", "bits": bits}
     
-    # The integers to store: INT codes as they are, and FP codes as their bit patterns (sign, exponent, mantissa)
+    # 置く整数: INT の code はそのまま、FP の code はビットのパターン（符号、指数、仮数）
     named = build_format(number_format)
     if named.kind == "fp":
         stored = fp_encode(flat.double() * named.step_min, named)
@@ -47,13 +47,13 @@ def pack_codes(codes: torch.Tensor, number_format: str) -> tuple[bytes, dict[str
     if named.kind == "fp" and not torch.equal(fp_decode(stored, named).double() / named.step_min, flat.double()):
         raise ValueError(f"Codes that are not on the grid of {number_format}.")
     
-    # Wide values: little-endian, two's complement for signed INT
+    # 広い値: リトルエンディアンで、符号付きの INT は 2 の補数
     width = next(width for width in PACK_WIDTHS if width >= named.bits and (width >= 8 or width == named.bits))
     if width >= 8:
         kind = "i" if info["signed"] and named.kind == "int" else "u"
         return stored.numpy().astype(f"<{kind}{width // 8}").tobytes(), {**info, "bits": width}
     
-    # Narrow values: the low bits of each value (two's complement), several in each byte from the low bits up
+    # 狭い値: 各値の下のビット（2 の補数）を、1 バイトに複数個、下のビットから詰める
     count  = 8 // width
     values = (stored & (2**width - 1)).numpy().astype("uint8")
     values = numpy.pad(values, (0, -len(values) % count)).reshape(-1, count)

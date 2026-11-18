@@ -1,5 +1,5 @@
 # @file integer.py
-# @brief INT formats (int2 to int8, uint2 to uint8, int32)
+# @brief INT の形式（int2〜int8、uint2〜uint8、int32）
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -10,8 +10,8 @@ from .types import NumberFormat
 
 def integer_format(bits: int, signed: bool) -> NumberFormat:
     '''
-    #* Make an INT format: int2 to int8 when signed, and uint2 to uint8 when not.
-    #? The bias and the accumulator use int32 inside.
+    #* INT の形式を作る: 符号付きなら int2〜int8、符号なしなら uint2〜uint8。
+    #? バイアスと累積は、中で int32 を使う。
     '''
     
     low  = -(2 ** (bits - 1)) if signed else 0
@@ -22,8 +22,8 @@ def integer_format(bits: int, signed: bool) -> NumberFormat:
 
 def integer_encode(values: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn values on the INT grid into int64 codes.
-    #! Pass values that are already on the grid, for example from format_quantize().
+    #* INT のグリッドの値を int64 の code にする。
+    #! 値は先にグリッドに乗せておく（たとえば format_quantize() で）。
     '''
     
     return values.to(torch.int64)
@@ -31,7 +31,7 @@ def integer_encode(values: torch.Tensor, number_format: NumberFormat) -> torch.T
 
 def integer_decode(codes: torch.Tensor, number_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Turn INT codes back into float32 values.
+    #* INT の code を float32 の値に戻す。
     '''
     
     return codes.to(torch.float32)

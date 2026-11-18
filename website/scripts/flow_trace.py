@@ -1,5 +1,5 @@
 # @file flow_trace.py
-# @brief Record which Quaver functions the model of the guides calls, in order, in each mode, for the flow page of the API reference
+# @brief ガイドのモデルが、各モードで Quaver のどの関数をどの順に呼ぶかを記録する。API リファレンスの流れのページ用
 # @author Kohei Yamaguchi, Claude
 
 from pathlib import Path
@@ -21,12 +21,12 @@ OUTPUT  = ROOT / "website" / "src" / "data" / "flow.json"
 
 def flow_trace_main() -> None:
     '''
-    #* Run the model in each mode under a profiler, keep the calls into Quaver as a tree, and write it as JSON for the site.
-    #? The tree keeps the calls of the functions of quaver/ and of the model files next to this script. The #* line of each docstring says what the call is for.
-    #! Run it from the top of the repository after the code changes: uv run python website/scripts/flow_trace.py
+    #* profiler の下で各モードでモデルを動かし、Quaver への呼び出しを木として残して、サイト用の JSON に書く。
+    #? 木には、quaver/ の関数と、このスクリプトの隣のモデルのファイルの関数の呼び出しを残す。各 docstring の #* の行が、その呼び出しが何のためかを表す。
+    #! コードを変えたら、リポジトリの一番上から動かす: uv run python website/scripts/flow_trace.py
     '''
     
-    # The #* line of every function and method, by file and qualified name
+    # すべての関数とメソッドの #* の行を、ファイルと修飾名ごとに集める
     notes: dict[tuple[str, str], str] = {}
     for path in [*PACKAGE.rglob("*.py"), *GUIDE.glob("*.py")]:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -38,7 +38,7 @@ def flow_trace_main() -> None:
                 lines = (ast.get_docstring(node) or "").splitlines()
                 notes.setdefault((str(path), node.name), next((line.strip()[3:] for line in lines if line.strip().startswith("#*")), ""))
     
-    # Build the model, set its scales with a batch, and name its modules (conv1, depthwise2, ...)
+    # モデルを作り、batch で scale を決め、module に名前を付ける（conv1、depthwise2 など）
     precision_disable_tf32()
     torch.manual_seed(0)
     model  = TinyNet()
@@ -47,10 +47,10 @@ def flow_trace_main() -> None:
     model(images)
     names  = {id(module): name or "model" for name, module in model.named_modules()}
     
-    # The modes to record: a key, a title, what it shows, and how to run it
+    # 記録するモード: キー、題、見せるもの、動かし方
     def run_training() -> None:
         '''
-        #* One QAT step: forward and backward in train().
+        #* QAT の 1 step: train() で forward と backward。
         '''
         
         model.train()
@@ -59,7 +59,7 @@ def flow_trace_main() -> None:
     
     def run_test() -> None:
         '''
-        #* A test: forward in eval() without gradients.
+        #* テスト: eval() で、勾配なしに forward。
         '''
         
         model.eval()
@@ -69,7 +69,7 @@ def flow_trace_main() -> None:
     
     def run_integer() -> None:
         '''
-        #* The integer mode: forward on codes, then back to the training mode.
+        #* integer mode: code で forward し、training mode に戻す。
         '''
         
         model.eval()
@@ -81,7 +81,7 @@ def flow_trace_main() -> None:
     
     def run_calibration() -> None:
         '''
-        #* Calibration: calibrate_model() in the float mode.
+        #* calibration: float のモードで calibrate_model()。
         '''
         
         calibrate_model(model, [images])
@@ -94,7 +94,7 @@ def flow_trace_main() -> None:
         ("calibration", "Calibration"  , "calibrate_model(): the float mode, where the layers compute in float and the scalers measure the ranges."              , run_calibration),
     ]
     
-    # Record each mode: a node for every call into Quaver or the model files, under the nearest recorded caller
+    # 各モードを記録する: Quaver かモデルのファイルへの呼び出しごとに、一番近い記録済みの呼び出し元の下にノードを作る
     result = []
     for key, title, about, run in modes:
         top        : dict            = {"children": []}
@@ -102,10 +102,10 @@ def flow_trace_main() -> None:
         
         def profile(frame, event, arg) -> None:
             '''
-            #* Keep each call into Quaver or the model files as a node under its nearest recorded caller.
+            #* Quaver かモデルのファイルへの各呼び出しを、一番近い記録済みの呼び出し元の下のノードとして残す。
             '''
             
-            # Forget a frame when it returns, and skip calls outside Quaver and the model files
+            # 関数から戻ったらそのフレームを忘れ、Quaver とモデルのファイルの外の呼び出しは飛ばす
             path = Path(frame.f_code.co_filename)
             if event == "return":
                 open_frames.pop(id(frame), None)
@@ -113,12 +113,12 @@ def flow_trace_main() -> None:
             if event != "call" or "<" in frame.f_code.co_qualname or not (path.parent == GUIDE or PACKAGE in path.parents):
                 return None
             
-            # Find the nearest caller that is recorded
+            # 記録済みの一番近い呼び出し元を探す
             caller = frame.f_back
             while caller is not None and id(caller) not in open_frames:
                 caller = caller.f_back
             
-            # Add this call under it, with the name of its module and what it is for
+            # その下にこの呼び出しを、module の名前と目的と一緒に足す
             parent                 = top if caller is None else open_frames[id(caller)]
             owner                  = names.get(id(frame.f_locals.get("self")), "")
             file                   = "guide" if path.parent == GUIDE else path.relative_to(ROOT).as_posix()
@@ -131,10 +131,10 @@ def flow_trace_main() -> None:
         run()
         sys.setprofile(None)
         
-        # Merge runs of the same call (same module, same calls inside) into one node with a count
+        # 同じ呼び出しの続き（同じ module で、中の呼び出しも同じ）を、回数付きの 1 つのノードにまとめる
         def merge(nodes: list[dict]) -> list[dict]:
             '''
-            #* Merge runs of the same call with the same calls inside into one node with a count.
+            #* 中の呼び出しも同じ、同じ呼び出しの続きを、回数付きの 1 つのノードにまとめる。
             '''
             
             merged: list[dict] = []
@@ -147,7 +147,7 @@ def flow_trace_main() -> None:
             return merged
         result.append({"key": key, "title": title, "about": about, "calls": merge(top["children"])})
     
-    # Write the JSON for the site
+    # サイト用の JSON を書く
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_bytes((json.dumps({"modes": result}, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
     print(f"wrote {OUTPUT.relative_to(ROOT).as_posix()}: " + ", ".join(f"{mode['key']} {json.dumps(mode).count(chr(34) + 'name' + chr(34))} calls" for mode in result))

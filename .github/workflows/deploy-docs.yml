@@ -1,4 +1,4 @@
-# Build the documentation site in website/ and publish it on GitHub Pages, on every push to main
+# main に push するたびに、website/ のドキュメントのサイトをビルドして GitHub Pages に公開する
 name: Deploy docs
 
 on:
@@ -11,7 +11,7 @@ permissions:
   pages: write
   id-token: write
 
-# One deploy at a time; a newer push waits for the running one
+# デプロイは 1 度に 1 つ。新しい push は、動いているデプロイが終わるのを待つ
 concurrency:
   group: pages
   cancel-in-progress: false
