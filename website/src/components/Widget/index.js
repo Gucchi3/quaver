@@ -1,5 +1,5 @@
-// An interactive figure from website/static/widgets/, shown in a sandboxed iframe.
-// The figure gets the colors of the site as CSS variables, its params as window.widgetParams, and tells this page its height.
+// website/static/widgets/ の操作できる図を、sandbox の iframe で見せる。
+// 図はサイトの色を CSS の変数で、params を window.widgetParams で受け取り、自分の高さをこのページに伝える。
 
 import {useEffect, useId, useRef, useState} from 'react';
 
@@ -8,13 +8,13 @@ import {useColorMode} from '@docusaurus/theme-common';
 
 import styles from './styles.module.css';
 
-// The colors of the site, as the variables that the figures use
+// サイトの色を、図が使う変数として渡す
 const THEMES = {
   light: {text: '#2f2219', muted: '#6b5a4c', faint: '#a08868', bg: '#fbfaf5', bg2: '#f5efe4', border: '#dccbad', borderStrong: '#c4ad8a', accent: '#b5442a', onAccent: '#ffffff'},
   dark: {text: '#ecdfcb', muted: '#c7b29b', faint: '#87705a', bg: '#1e1915', bg2: '#262019', border: '#4a3c2e', borderStrong: '#66533f', accent: '#dd7350', onAccent: '#1e1915'},
 };
 
-// The color ramps of the figures: [50, 100, 200, 600, 800]
+// 図の色の段階: [50, 100, 200, 600, 800]
 const RAMPS = {
   purple: ['#EEEDFE', '#CECBF6', '#AFA9EC', '#534AB7', '#3C3489'],
   teal: ['#E1F5EE', '#9FE1CB', '#5DCAA5', '#0F6E56', '#085041'],
@@ -97,14 +97,14 @@ export default function Widget({src, params, title}) {
   const [html, setHtml]     = useState(null);
   const [height, setHeight] = useState(360);
 
-  // Load the figure once
+  // 図を 1 回だけ読み込む
   useEffect(() => {
     let alive = true;
     fetch(url).then((response) => response.text()).then((text) => alive && setHtml(text));
     return () => { alive = false; };
   }, [url]);
 
-  // Take the height that the figure sends
+  // 図が送る高さを受け取る
   useEffect(() => {
     const onMessage = (event) => {
       if (frame.current && event.source === frame.current.contentWindow && event.data && event.data.__widget === id) {

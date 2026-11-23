@@ -1,6 +1,6 @@
 /*
- * Three steps in a row, joined by ink arrows. The name of each step is the one bold thing, in the face of the headings.
- * The things handed to the next step sit on the arrow. On a narrow screen, the steps stack and the arrows point down.
+ * 3 つの手順を横に並べ、墨の矢印でつなぐ。各手順の名前だけを太字にし、見出しの書体にする。
+ * 次の手順に渡すものは矢印の上に置く。狭い画面では、手順を縦に積み、矢印は下を向く。
  */
 .flow {
   margin: 1.75rem 0 2.25rem;
@@ -48,7 +48,7 @@
   color: var(--ifm-font-color-secondary);
 }
 
-/* The arrow fills the space between two steps, with the handed things above it */
+/* 矢印は 2 つの手順の間を埋め、渡すものをその上に置く */
 .handoff {
   flex: 1;
   display: flex;

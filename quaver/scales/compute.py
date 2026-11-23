@@ -1,5 +1,5 @@
 # @file compute.py
-# @brief Turn ranges of values into scales and zero points
+# @brief 値の範囲を scale と zero point に変える
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -13,17 +13,17 @@ MSE_STEPS = 100
 
 def compute_scale(low: torch.Tensor, high: torch.Tensor, number_format: NumberFormat, symmetric: bool) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* Turn a range of values into a scale and a zero point.
-    #? Symmetric works for every format. Asymmetric is for INT formats.
-    #! The asymmetric range is made wider to include 0, so 0 stays exact.
+    #* 値の範囲を scale と zero point に変える。
+    #? 対称はどの形式でも使える。非対称は INT の形式用。
+    #! 非対称の範囲は 0 を含むように広げるので、0 は正確なままになる。
     '''
     
-    # Symmetric: the larger of |low| and |high| goes to the largest value of the format, and the zero point is 0
+    # 対称: |low| と |high| の大きい方を形式の一番大きな値に合わせ、zero point は 0 にする
     if symmetric:
         scale = (torch.maximum(low.abs(), high.abs()) / number_format.max_value).clamp_min(SCALE_MIN)
         return scale, torch.zeros_like(scale)
     
-    # Asymmetric: make the range include 0, spread it over every code, and put real 0 on an integer code
+    # 非対称: 範囲が 0 を含むようにし、すべての code に広げて、実数の 0 を整数の code に乗せる
     low        = low.clamp(max=0.0)
     high       = high.clamp(min=0.0)
     scale      = ((high - low) / (number_format.max_value - number_format.min_value)).clamp_min(SCALE_MIN)
@@ -33,18 +33,18 @@ def compute_scale(low: torch.Tensor, high: torch.Tensor, number_format: NumberFo
 
 def compute_mse_range(values: torch.Tensor, low: torch.Tensor, high: torch.Tensor, number_format: NumberFormat, symmetric: bool) -> tuple[torch.Tensor, torch.Tensor]:
     '''
-    #* Shrink the range of each group to the one whose quantized values have the least squared error (the MSE start values of LSQ+).
-    #? values has one row for each group, and low and high are the measured ranges. Symmetric ranges shrink both ends together, asymmetric ones shrink the low end and the high end in turn (twice).
-    #! It tries MSE_STEPS fractions of the measured ends and rounds half to even. It makes no GPU sync, so it can run inside the first training step.
+    #* 各グループの範囲を、量子化した値の二乗誤差が一番小さくなる範囲に縮める（LSQ+ の MSE の初期値）。
+    #? values はグループごとに 1 行を持ち、low と high は測った範囲。対称の範囲は両端を一緒に縮め、非対称の範囲は下の端と上の端を交互に縮める（2 回ずつ）。
+    #! 測った端に MSE_STEPS 通りの割合をかけて試し、half to even で丸める。GPU の同期をしないので、最初の学習の step の中で動かせる。
     '''
     
-    # The fractions to try, the ends that move in each turn, and the range that is really used (asymmetric ranges include 0)
+    # 試す割合、各回で動かす端、実際に使う範囲（非対称の範囲は 0 を含む）
     fractions = torch.arange(1, MSE_STEPS + 1, dtype=values.dtype, device=values.device) / MSE_STEPS
     turns     = ["both"] if symmetric else ["low", "high", "low", "high"]
     low, high = (low, high) if symmetric else (low.clamp(max=0.0), high.clamp(min=0.0))
     best      = (low, high)
     for turn in turns:
-        # Try each fraction of the moving end, and keep the range with the least error in each group
+        # 動かす端の各割合を試し、グループごとに誤差が一番小さい範囲を残す
         start = best
         error = torch.full_like(low, torch.inf)
         for fraction in fractions:
@@ -60,8 +60,8 @@ def compute_mse_range(values: torch.Tensor, low: torch.Tensor, high: torch.Tenso
 
 def compute_pow2(scale: torch.Tensor) -> torch.Tensor:
     '''
-    #* Round the scale up to a power of two, for devices that divide only with shifts.
-    #! This is exact, because frexp and ldexp only change the exponent.
+    #* shift でしか割れないデバイスのために、scale を 2 のべき乗に切り上げる。
+    #! frexp と ldexp は指数しか変えないので、これは正確である。
     '''
     
     mantissa, exponent = torch.frexp(scale)
@@ -70,9 +70,9 @@ def compute_pow2(scale: torch.Tensor) -> torch.Tensor:
 
 def compute_block(block_amax: torch.Tensor, tensor_scale: torch.Tensor, number_format: NumberFormat, scale_format: NumberFormat) -> torch.Tensor:
     '''
-    #* Return the scale of each block of a block-scaled format: block_amax / top / tensor scale, rounded to scale_format (half to even).
-    #? top is the largest value of number_format (6 for fp4, 7 for ufp4). scale_format ue4m3 gives NVFP4, and an unsigned INT format (uint6, uint10) gives integer block scales (VS-Quant).
-    #! Block scales stay at or above the smallest step of scale_format, so a block of zeros still has a scale.
+    #* ブロックごとの scale の形式の、各ブロックの scale を返す: block_amax / top / テンソルの scale を scale_format に丸めたもの（half to even）。
+    #? top は number_format の一番大きな値（fp4 は 6、ufp4 は 7）。scale_format が ue4m3 なら NVFP4、符号なしの INT の形式（uint6、uint10）なら整数のブロックの scale（VS-Quant）になる。
+    #! ブロックの scale は scale_format の一番小さな刻み以上に保つので、0 だけのブロックも scale を持つ。
     '''
     
     return format_quantize(block_amax / number_format.max_value / tensor_scale, scale_format, "half_even").clamp_min(scale_format.step_min)

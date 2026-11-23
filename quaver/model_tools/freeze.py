@@ -1,5 +1,5 @@
 # @file freeze.py
-# @brief Stop or start again the range updates of the scalers
+# @brief scaler の範囲の更新を止める、またはもう一度始める
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -11,9 +11,9 @@ from .collect import collect_scalers
 
 def freeze_scalers(model: nn.Module, frozen: bool = True, step: int | None = None) -> int:
     '''
-    #* Stop (frozen=True) or start again (frozen=False) the range updates of the max, percentile, and shared scalers, or with step, make them stop by themselves later. Returns how many scalers it set.
-    #? Without step, call it after a few epochs (range_freeze_epoch in E_AI_deit). With step, call it once before training, with step = epochs x steps per epoch.
-    #! Capture CUDA graphs again after you change frozen. A step set before the capture needs no new capture, because the stop happens on the device.
+    #* max、percentile、共有の scaler の範囲の更新を止める（frozen=True）か、もう一度始める（frozen=False）。step を渡すと、あとで自動で止まるようにする。設定した scaler の数を返す。
+    #? step なしのときは、数エポックのあとで呼ぶ（E_AI_deit の range_freeze_epoch）。step ありのときは、学習の前に 1 回、step = エポック数 x 1 エポックの step 数 で呼ぶ。
+    #! frozen を変えたら、CUDA graph を記録し直す。記録の前に決めた step なら、止める処理はデバイスの上で起きるので、記録し直さなくてよい。
     '''
     
     scalers = [*collect_scalers(model, RangeScaler), *collect_scalers(model, SharedScaler)]

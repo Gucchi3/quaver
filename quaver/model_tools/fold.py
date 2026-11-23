@@ -1,5 +1,5 @@
 # @file fold.py
-# @brief Fold BatchNorm into the conv before it
+# @brief BatchNorm を、その前の conv に畳み込む
 # @author Kohei Yamaguchi, Claude
 
 from torch                 import nn
@@ -13,16 +13,16 @@ FOLD_PAIRS = ((nn.Conv1d, nn.BatchNorm1d), (nn.Conv2d, nn.BatchNorm2d), (nn.Conv
 
 def fold_batch_norms(model: nn.Module) -> nn.Module:
     '''
-    #* Return a copy of the model in eval mode, with each BatchNorm folded into the conv just before it.
-    #! It only folds a conv and a BatchNorm that are next to each other in the same parent module.
+    #* モデルの写しを eval mode にし、各 BatchNorm をそのすぐ前の conv に畳み込んで返す。
+    #! 同じ親の module の中で隣り合う conv と BatchNorm だけを畳み込む。
     '''
     
-    # Look at the children of every module in the copy
+    # 写しの中の、すべての module の子を見る
     folded = copy.deepcopy(model).eval()
     for module in list(folded.modules()):
         children = list(module.named_children())
         
-        # Swap each (conv, BatchNorm) pair for the folded conv and an Identity
+        # 各組 (conv, BatchNorm) を、畳み込んだ conv と Identity に置き換える
         for (conv_name, conv), (norm_name, norm) in zip(children, children[1:]):
             for conv_type, norm_type in FOLD_PAIRS:
                 if isinstance(conv, conv_type) and isinstance(norm, norm_type):

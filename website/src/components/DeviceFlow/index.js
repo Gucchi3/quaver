@@ -1,4 +1,4 @@
-// The path from Quaver to the device: Quaver trains and checks the model, model_export() writes model.json and model.bin, and the device reads model.bin from its memory.
+// Quaver からデバイスまでの道: Quaver がモデルを学習して確かめ、model_export() が model.json と model.bin を書き、デバイスが自分のメモリから model.bin を読む。
 
 import styles from './styles.module.css';
 
@@ -8,7 +8,7 @@ const STEPS = [
   {name: 'Your device', role: 'Reads model.bin from its memory (for example PSRAM), and runs each layer with integer math.'},
 ];
 
-// What happens between two steps
+// 2 つの手順の間で起きること
 const HANDOFFS = [
   ['model_export()'],
   ['write model.bin', 'into memory'],

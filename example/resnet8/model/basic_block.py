@@ -1,5 +1,5 @@
 # @file basic_block.py
-# @brief FP32 block of ResNet-8: two 3x3 convs with BatchNorm and a residual add
+# @brief ResNet-8 の FP32 のブロック: BatchNorm 付きの 3x3 の conv 2 つと、残差の足し算
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -10,14 +10,14 @@ import torch
 
 class BasicBlock(nn.Module):
     '''
-    #* Two 3x3 convs with BatchNorm, a shortcut (as it is, or a 1x1 conv with a bias), an add, and ReLU.
-    #? Same layout as the ResNet-8 of MLPerf Tiny (resnet_v1_eembc).
-    #! Each conv comes just before its BatchNorm in the same module, so fold_batch_norms() can fold them.
+    #* BatchNorm 付きの 3x3 の conv 2 つ、shortcut（そのまま、またはバイアス付きの 1x1 conv）、足し算、ReLU でできている。
+    #? MLPerf Tiny の ResNet-8（resnet_v1_eembc）と同じ形。
+    #! 各 conv は同じ module の中で自分の BatchNorm のすぐ前に置くので、fold_batch_norms() で畳み込める。
     '''
     
     def __init__(self, in_channels: int, out_channels: int, stride: int) -> None:
         '''
-        #* Make the two convs, their BatchNorms, and the shortcut.
+        #* 2 つの conv、その BatchNorm、shortcut を作る。
         '''
         
         super().__init__()
@@ -31,7 +31,7 @@ class BasicBlock(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         '''
-        #* Run the block.
+        #* ブロックを動かす。
         '''
         
         y = torch.relu(self.bn1(self.conv1(x)))

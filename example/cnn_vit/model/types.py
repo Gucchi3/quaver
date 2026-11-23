@@ -1,5 +1,5 @@
 # @file types.py
-# @brief Settings of the quantized CNN + ViT
+# @brief 量子化した CNN + ViT の設定
 # @author Kohei Yamaguchi, Claude
 
 from dataclasses import dataclass
@@ -9,11 +9,11 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CnnVitSetting:
     '''
-    #* Hold the quantization settings of one quantized CNN + ViT.
-    #? MODEL_REGISTRY in build.py gives one setting to each model name, and QuantCnnVit makes its layers from it.
-    #! act_format: outputs after ReLU (conv1, conv2, and the MLP). branch_format: inputs of the attention and the MLP (None keeps the INT8 residual as it is).
-    #! sima_format: Q, K, the attention map, and V. project_format: the input of the projection (signed: no ReLU6 after attention x V, like the paper). Asymmetric settings work only for INT formats.
-    #! shared_residual: one scale for the residual stream inside each block (scale sharing of Kaneko and Meng, Fig. 7). False gives each add its own scale.
+    #* 量子化した CNN + ViT 1 つの、量子化の設定を持つ。
+    #? build.py の MODEL_REGISTRY がモデルの名前ごとに設定を 1 つ与え、QuantCnnVit がそれをもとに層を作る。
+    #! act_format: ReLU のあとの出力（conv1、conv2、MLP）。branch_format: attention と MLP の入力（None のときは INT8 の残差をそのまま使う）。
+    #! sima_format: Q、K、attention map、V。project_format: projection の入力（符号付き。論文と同じく attention x V のあとに ReLU6 を置かない）。非対称の設定は INT の形式でしか使えない。
+    #! shared_residual: 各ブロックの中の残差のストリームで 1 つの scale を使う（Kaneko と Meng の Fig. 7 の scale の共有）。False のときは、足し算ごとに自分の scale を持つ。
     '''
     
     weight_format   : str

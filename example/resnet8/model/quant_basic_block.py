@@ -1,5 +1,5 @@
 # @file quant_basic_block.py
-# @brief Quantized block of ResNet-8, made from the quaver samples
+# @brief quaver のサンプルで作った、量子化した ResNet-8 のブロック
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -14,29 +14,29 @@ from .types     import Resnet8Setting
 
 class QuantBasicBlock(nn.Module):
     '''
-    #* Quantized BasicBlock: conv1 with ReLU into the activation format, conv2 into its INT32 accumulator, an INT8 residual add, and then ReLU and the activation format.
-    #? The 1x1 shortcut gives INT8. With act_symmetric=False, every activation of the block (the residual add too) has a zero point.
-    #! conv1, conv2, and shortcut have the names of BasicBlock, so its folded weights load as they are.
+    #* 量子化した BasicBlock。conv1 は ReLU のあと活性化の形式に、conv2 は INT32 の累積に出し、INT8 の残差を足して、ReLU と活性化の形式にする。
+    #? 1x1 の shortcut は INT8 を出す。act_symmetric=False のときは、ブロックのすべての活性化（残差の足し算も）が zero point を持つ。
+    #! conv1、conv2、shortcut の名前は BasicBlock と同じなので、畳み込んだ重みをそのまま読み込める。
     '''
     
     def __init__(self, in_channels: int, out_channels: int, stride: int, setting: Resnet8Setting) -> None:
         '''
-        #* Make the convs, the shortcut, the add, and the quantizer of the block output.
+        #* conv、shortcut、足し算、ブロックの出力の量子化器を作る。
         '''
         
-        # conv1: 3x3 conv, ReLU, and the activation format
+        # conv1: 3x3 conv、ReLU、活性化の形式
         super().__init__()
         self.conv1 = QuantConv2d(in_channels, out_channels, 3, stride, 1, weight_format=setting.weight_format, output_format=setting.act_format, activation="relu", weight_symmetric=setting.weight_symmetric, output_symmetric=setting.act_symmetric)
         
-        # conv2: 3x3 conv that stays an INT32 accumulator (the residual add rescales it)
+        # conv2: INT32 の累積のままにする 3x3 conv（残差の足し算が scale を合わせ直す）
         self.conv2 = QuantConv2d(out_channels, out_channels, 3, 1, 1, weight_format=setting.weight_format, weight_symmetric=setting.weight_symmetric)
         
-        # Shortcut: the input as it is, or a 1x1 conv into INT8
+        # shortcut: 入力をそのまま使うか、INT8 に出す 1x1 conv
         self.shortcut = None
         if stride != 1 or in_channels != out_channels:
             self.shortcut = QuantConv2d(in_channels, out_channels, 1, stride, weight_format=setting.weight_format, output_format="int8", weight_symmetric=setting.weight_symmetric, output_symmetric=setting.act_symmetric)
         
-        # INT8 residual add, and the quantizer of the block output (after ReLU)
+        # INT8 の残差の足し算と、ブロックの出力（ReLU のあと）の量子化器
         self.add              = QuantAdd("int8", output_symmetric=setting.act_symmetric)
         self.output_quantizer = Quantizer(build_format(setting.act_format), RangeScaler(symmetric=setting.act_symmetric), Granularity(), batch_axis=0)
         self.integer_mode     = False
@@ -46,17 +46,17 @@ class QuantBasicBlock(nn.Module):
     
     def forward(self, x: torch.Tensor, x_params: QuantParams) -> tuple[torch.Tensor, QuantParams]:
         '''
-        #* Run the block in the current mode (fake values, integer codes, or float values).
+        #* 今のモード（fake の値、整数の code、float の値）でブロックを動かす。
         '''
         
-        # Shortcut: the input as it is, or the 1x1 conv into INT8
+        # shortcut: 入力をそのまま使うか、INT8 に出す 1x1 conv
         identity, identity_params = (x, x_params) if self.shortcut is None else self.shortcut(x, x_params)
         
-        # conv1 ends in the activation format, and conv2 stays an INT32 accumulator
+        # conv1 は活性化の形式で終わり、conv2 は INT32 の累積のままにする
         y, y_params = self.conv1(x, x_params)
         y, y_params = self.conv2(y, y_params)
         
-        # INT8 residual add, then ReLU and the activation format (the requantization removes the zero point of the add first)
+        # INT8 の残差の足し算、次に ReLU と活性化の形式（requantize は、先に足し算の zero point を引く）
         ops         = mode_ops(self.integer_mode, self.float_mode)
         y, y_params = self.add(y, y_params, identity, identity_params)
         y           = ops.activation(y, y_params, "relu")

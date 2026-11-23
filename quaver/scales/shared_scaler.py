@@ -1,5 +1,5 @@
 # @file shared_scaler.py
-# @brief One scale shared by several tensors in a forward pass
+# @brief 1 回の forward で、複数のテンソルが共有する 1 つの scale
 # @author Kohei Yamaguchi, Claude
 
 from torch import nn
@@ -17,10 +17,10 @@ from .types    import Granularity
 
 class SharedScaler(nn.Module):
     '''
-    #* Share one scale for the whole tensor among several tensors in one forward pass (the residual stream).
-    #? Call begin_forward() at the start of the forward pass of the model, and end_forward() at the end.
-    #? Scale sharing of Kaneko and Meng: one SharedScaler for the residual stream of one block (its input, the branch outputs, and the adds). The block calls both around its own forward pass.
-    #! The scale does not change in between, and the moving average is updated once in end_forward(). freeze_step stops the updates by itself, like RangeScaler.
+    #* テンソル全体で 1 つの scale を、1 回の forward の中で複数のテンソル（残差のストリーム）が共有する。
+    #? モデルの forward の初めに begin_forward() を、終わりに end_forward() を呼ぶ。
+    #? Kaneko と Meng の scale の共有: 1 つのブロックの残差のストリーム（ブロックの入力、枝の出力、足し算）で SharedScaler を 1 つ使う。ブロックが、自分の forward の前後で両方を呼ぶ。
+    #! 間では scale は変わらず、移動平均は end_forward() で 1 回だけ更新する。freeze_step は、RangeScaler と同じく、更新を自動で止める。
     '''
     
     learnable: bool = False
@@ -30,8 +30,8 @@ class SharedScaler(nn.Module):
     
     def __init__(self, percentile: float | None = None, momentum: float = 0.95, symmetric: bool = True, freeze_step: int | None = None) -> None:
         '''
-        #* Keep the settings, and start the kept range as NaN (not measured yet).
-        #? freeze_step is the number of updates (forward passes) before the range stops (None never stops). A range never measured always takes the first update.
+        #* 設定を持ち、持っておく範囲を NaN（まだ測っていない）で始める。
+        #? freeze_step は、範囲が止まるまでの更新（forward）の回数（None なら止めない）。一度も測っていない範囲は必ず最初の更新を受け入れる。
         '''
         
         super().__init__()
@@ -48,8 +48,8 @@ class SharedScaler(nn.Module):
     
     def begin_forward(self, x: torch.Tensor | None = None) -> None:
         '''
-        #* Start a forward pass: forget the ranges seen so far, and set the kept range from x if it was never set.
-        #? Pass the first tensor of the stream (the output of the stem), so the very first pass also uses one scale.
+        #* forward を始める: それまでに見た範囲を忘れ、持っておく範囲がまだ決まっていなければ x から決める。
+        #? ストリームの最初のテンソル（stem の出力）を渡すので、一番最初のパスも 1 つの scale を使う。
         '''
         
         self.seen.fill_(torch.nan)
@@ -61,28 +61,28 @@ class SharedScaler(nn.Module):
     
     def forward(self, x: torch.Tensor, number_format: NumberFormat, granularity: Granularity, update: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
         '''
-        #* Return the shared scale and zero point, and remember the range of x for end_forward().
-        #? While torch.export runs, it uses the kept range only (an exported model is calibrated), so the scale does not depend on x and folds into a constant.
+        #* 共有の scale と zero point を返し、end_forward() のために x の範囲を覚える。
+        #? torch.export が動いている間は、持っておいた範囲だけを使う（書き出すモデルは calibration 済み）ので、scale は x によらず、定数に畳み込まれる。
         '''
         
-        # While exporting: the kept range
+        # 書き出し中: 持っておいた範囲
         if torch.compiler.is_exporting():
             scale, zero_point = compute_scale(self.kept[0], self.kept[1], number_format, self.symmetric)
             return group_merge(scale, x.shape, granularity), group_merge(zero_point, x.shape, granularity)
         
-        # Remember the widest range seen in this forward pass
+        # この forward で見た一番広い範囲を覚える
         current = torch.stack(minmax_measure(x, Granularity(), self.percentile, self.symmetric))
         if update and self.training and not self.frozen:
             self.seen.copy_(torch.stack([torch.fmin(self.seen[0], current[0]), torch.fmax(self.seen[1], current[1])]))
         
-        # Use the kept range, or the range of x while nothing is kept yet
+        # 持っておいた範囲を使う。まだ何もないときは x の範囲を使う
         kept              = torch.where(torch.isnan(self.kept), current, self.kept)
         scale, zero_point = compute_scale(kept[0], kept[1], number_format, self.symmetric)
         return group_merge(scale, x.shape, granularity), group_merge(zero_point, x.shape, granularity)
     
     def end_forward(self) -> None:
         '''
-        #* Finish a forward pass: move the kept range toward the widest range seen, and keep the old range after freeze_step updates.
+        #* forward を終える: 持っておく範囲を見た一番広い範囲に近づけ、freeze_step 回の更新のあとは古い範囲を使い続ける。
         '''
         
         if self.training and not self.frozen:

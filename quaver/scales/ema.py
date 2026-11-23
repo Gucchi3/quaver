@@ -1,5 +1,5 @@
 # @file ema.py
-# @brief Moving average that starts from NaN
+# @brief NaN から始まる移動平均
 # @author Kohei Yamaguchi, Claude
 
 import torch
@@ -8,8 +8,8 @@ import torch
 
 def ema_update(running: torch.Tensor, current: torch.Tensor, momentum: float) -> torch.Tensor:
     '''
-    #* Return the moving average of running and current.
-    #! Where running is NaN (never measured), return current as it is. This uses torch.where, so there is no GPU sync.
+    #* running と current の移動平均を返す。
+    #! running が NaN（一度も測っていない）の所では、current をそのまま返す。torch.where を使うので、GPU の同期はない。
     '''
     
     average = running * momentum + current * (1.0 - momentum)
